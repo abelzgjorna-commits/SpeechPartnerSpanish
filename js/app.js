@@ -1024,6 +1024,8 @@
     return c;
   }
 
+  // Opnemen op iPhone: het geluid wordt rechtstreeks als ruwe samples opgevangen (geen bestand
+  // dat achteraf gedecodeerd moet worden), daarna naar 16 kHz gebracht en op volume gebracht.
   function whStart() {
     if (!store.get("whModel", null)) { S.whAsk = true; S.note = ""; go("gesprek"); return; }
     if (!WH.ready) {
@@ -1033,35 +1035,67 @@
       whLoadWithNote();
       return;
     }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      WH.stream = stream; WH.chunks = [];
-      var rec = new MediaRecorder(stream);
-      rec.ondataavailable = function (e) { if (e.data && e.data.size) WH.chunks.push(e.data); };
-      rec.onstop = function () { whFinish(rec); };
-      WH.rec = rec; rec.start();
+    if (WH.starting) return;
+    WH.starting = true;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    var ac = null;
+    try { ac = new AC(); if (ac.state === "suspended") ac.resume(); } catch (e) { ac = null; }
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }).then(function (stream) {
+      WH.starting = false;
+      if (!ac) throw new Error("AudioContext");
+      WH.stream = stream; WH.ac = ac; WH.pcm = []; WH.rate = ac.sampleRate;
+      var src = ac.createMediaStreamSource(stream);
+      var proc = ac.createScriptProcessor(4096, 1, 1);
+      var mute = ac.createGain(); mute.gain.value = 0;
+      proc.onaudioprocess = function (e) { WH.pcm.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+      src.connect(proc); proc.connect(mute); mute.connect(ac.destination);
+      WH.src = src; WH.proc = proc;
+      if (ac.state === "suspended") ac.resume();
       S.listening = true; S.wrec = true; S.note = "";
       updateMic(); render();
-    }).catch(function () {
-      S.note = T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
+    }).catch(function (e) {
+      WH.starting = false;
+      if (ac) { try { ac.close().catch(function () {}); } catch (x) {} }
+      S.note = (e && e.message === "AudioContext") ? whErr(e) : T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
       go("gesprek");
     });
   }
 
-  function whFinish(rec) {
+  function whStop() {
+    try { WH.proc.onaudioprocess = null; WH.src.disconnect(); WH.proc.disconnect(); } catch (e) {}
     if (WH.stream) { WH.stream.getTracks().forEach(function (t) { t.stop(); }); WH.stream = null; }
-    S.listening = false; S.wrec = false; WH.rec = null;
+    var rate = WH.rate || 48000;
+    if (WH.ac) { try { WH.ac.close().catch(function () {}); } catch (e) {} WH.ac = null; }
+    S.listening = false; S.wrec = false;
+    var chunks = WH.pcm || []; WH.pcm = [];
+    var len = 0, i, k;
+    for (i = 0; i < chunks.length; i++) len += chunks[i].length;
+    var ratio = rate / 16000, n = Math.floor(len / ratio);
+    var secs = Math.round(len / rate * 10) / 10;
+    if (n < 16000 * 0.3) {
+      S.note = T("Geen spraak gehoord. Probeer het opnieuw.") + " (" + T("opname") + " " + secs + " s)";
+      updateMic(); go("gesprek"); return;
+    }
+    var flat = new Float32Array(len), o = 0;
+    for (i = 0; i < chunks.length; i++) { flat.set(chunks[i], o); o += chunks[i].length; }
+    var out = new Float32Array(n), peak = 0;
+    for (i = 0; i < n; i++) {
+      var pos = i * ratio, i0 = Math.floor(pos), i1 = Math.min(i0 + 1, len - 1), f = pos - i0;
+      var v = flat[i0] * (1 - f) + flat[i1] * f;
+      out[i] = v; if (v > peak) peak = v; else if (-v > peak) peak = -v;
+    }
+    // Zachte opnames (partner op afstand) versterken tot een normaal niveau.
+    if (peak > 0.002) { var g = Math.min(0.9 / peak, 40); for (k = 0; k < n; k++) out[k] *= g; }
+    var info = " (" + T("opname") + " " + secs + " s, " + T("volume") + " " + Math.round(peak * 100) + "%";
     S.note = T("Bezig met verwerken…");
     updateMic(); go("gesprek");
-    var blob = new Blob(WH.chunks, { type: rec.mimeType || "audio/mp4" });
-    WH.chunks = [];
-    if (!blob.size) { S.note = T("Geen spraak gehoord. Probeer het opnieuw."); go("gesprek"); return; }
-    whDecode(blob).then(function (audio) { return whRun(audio); }).then(function (out) {
-      var text = String(out || "").trim();
+    whRun(out).then(function (res) {
+      var text = String(res || "").trim();
       S.note = "";
       // Whisper zet stilte of ruis soms om in (música) of [Music]: dat telt niet als zin.
       var junk = /^[\(\[\{].*[\)\]\}]$/.test(text) || /^[\W_]+$/.test(text);
       if (text.length >= 2 && !junk) S.convo.push(makeTurn(text));
-      else S.note = T("Geen spraak gehoord. Probeer het opnieuw.");
+      else S.note = T("Geen spraak gehoord. Probeer het opnieuw.") + info + (text ? ", " + T("gehoord") + ": " + text.slice(0, 40) : "") + ")";
       go("gesprek");
     }).catch(function (e) {
       S.note = whErr(e);
@@ -1072,7 +1106,7 @@
   function startMic() {
     if (S.listening) return;
     if (typeof prRelease === "function") prRelease();
-    if (isIOS() && window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) { whStart(); return; }
+    if (isIOS() && (window.AudioContext || window.webkitAudioContext) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) { whStart(); return; }
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     var rec = null;
     if (SR) { try { rec = new SR(); } catch (e) { rec = null; } }
@@ -1124,7 +1158,7 @@
   // Stoppen: laat de herkenning eerst de laatste zin verwerken (stop, niet abort);
   // alleen als het eindsignaal dan nog ontbreekt, rond de app zelf af.
   function stopMic() {
-    if (S.wrec) { if (WH.rec && WH.rec.state !== "inactive") { try { WH.rec.stop(); } catch (e) {} } return; }
+    if (S.wrec) { whStop(); return; }
     var rec = S.rec;
     if (!rec) return;
     try { rec.stop(); } catch (e) {}
