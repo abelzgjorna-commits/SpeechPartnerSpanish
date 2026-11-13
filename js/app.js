@@ -164,6 +164,7 @@
 
   // ---------- Navigatie en weergave van de vaste onderbalk ----------
   function go(tab) {
+    if (typeof prRelease === "function") prRelease();
     S.tab = tab; S.build = null;
     render();
     window.scrollTo(0, 0);
@@ -878,11 +879,13 @@
   function errorText(code) {
     if (code === "not-allowed" || code === "service-not-allowed") return T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
     if (code === "no-speech") return T("Geen spraak gehoord. Probeer het opnieuw.");
+    if (code === "audio-capture") return T("De microfoon kan niet worden gebruikt. Sluit andere apps of tabbladen die de microfoon gebruiken, controleer de microfoon-toegang van je browser, of typ hieronder.");
     return T("Spraakherkenning gaf een fout") + " (" + code + "). " + T("Typ hieronder wat je gesprekspartner zei.");
   }
 
   function startMic() {
     if (S.listening) return;
+    if (typeof prRelease === "function") prRelease();
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     var rec = null;
     if (SR) { try { rec = new SR(); } catch (e) { rec = null; } }
@@ -1003,7 +1006,7 @@
 
   // ---------- Uitspraaktrainer ----------
   var PR = { sub: "pairs", pair: 0, side: "a", shadow: 0, rr: 0, ds: 0, dt: 0 };
-  var prRec = null, prChunks = [], prUrl = null;
+  var prRec = null, prChunks = [], prUrl = null, prStream = null, prCtx = null;
 
   function prStartRecording(onStop) {
     if (!navigator.mediaDevices || !window.MediaRecorder) return Promise.resolve(false);
@@ -1013,8 +1016,9 @@
     return navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
       var AC = window.AudioContext || window.webkitAudioContext;
       var ctx = null, rawStream = stream, recStream = stream;
+      prStream = stream;
       try {
-        ctx = new AC();
+        ctx = new AC(); prCtx = ctx;
         var src = ctx.createMediaStreamSource(stream);
         var gain = ctx.createGain(); gain.gain.value = 3.0;
         var comp = ctx.createDynamicsCompressor();
@@ -1028,7 +1032,7 @@
       prRec.ondataavailable = function (e) { prChunks.push(e.data); };
       prRec.onstop = function () {
         rawStream.getTracks().forEach(function (t) { t.stop(); });
-        if (ctx) { try { ctx.close(); } catch (e) {} }
+        if (ctx && ctx.state !== "closed") { try { ctx.close().catch(function () {}); } catch (e) {} }
         if (prUrl) URL.revokeObjectURL(prUrl);
         prUrl = URL.createObjectURL(new Blob(prChunks, { type: prRec.mimeType || "audio/webm" }));
         onStop && onStop(prUrl);
@@ -1038,6 +1042,14 @@
     }).catch(function () { return false; });
   }
   function prStopRecording() { if (prRec && prRec.state !== "inactive") prRec.stop(); }
+  // Laat de microfoon volledig los (opname, audio en herkenning), zodat andere
+  // onderdelen van de app hem weer kunnen gebruiken.
+  function prRelease() {
+    if (prRec && prRec.state !== "inactive") { try { prRec.stop(); } catch (e) {} }
+    if (prRecog) { try { prRecog.abort(); } catch (e) {} prRecog = null; }
+    if (prStream) { prStream.getTracks().forEach(function (t) { t.stop(); }); prStream = null; }
+    if (prCtx) { if (prCtx.state !== "closed") { try { prCtx.close().catch(function () {}); } catch (e) {} } prCtx = null; }
+  }
 
   // Eén zin herkennen; geeft tekst of null (niet ondersteund / mislukt)
   var prRecog = null;
