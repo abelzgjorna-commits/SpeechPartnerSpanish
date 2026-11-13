@@ -904,7 +904,11 @@
         }
       }
     };
-    rec.onerror = function (ev) { errored = true; S.note = errorText(ev && ev.error); };
+    rec.onerror = function (ev) {
+      var code = ev && ev.error;
+      if (code === "aborted") return; // door de app zelf gestopt, geen fout
+      errored = true; S.note = errorText(code);
+    };
     var ended = false;
     rec.onend = function () {
       if (ended) return;
@@ -927,16 +931,15 @@
     }
   }
   // Stoppen: als het spraak-einde-event uitblijft (gebeurt op iPhone), rond de opname zelf af.
+  // Stoppen: laat de herkenning eerst de laatste zin verwerken (stop, niet abort);
+  // alleen als het eindsignaal dan nog ontbreekt, rond de app zelf af.
   function stopMic() {
     var rec = S.rec;
     if (!rec) return;
     try { rec.stop(); } catch (e) {}
     setTimeout(function () {
-      if (S.rec === rec) {
-        try { rec.abort(); } catch (e) {}
-        if (rec.onend) rec.onend();
-      }
-    }, 1500);
+      if (S.rec === rec && rec.onend) rec.onend();
+    }, 3000);
   }
 
   function viewGesprek() {
@@ -1004,12 +1007,28 @@
 
   function prStartRecording(onStop) {
     if (!navigator.mediaDevices || !window.MediaRecorder) return Promise.resolve(false);
-    return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+    // Geen ruis- of echo-onderdrukking (die dempen een gesprekspartner op afstand),
+    // en het signaal wordt versterkt en begrensd zodat de partner goed hoorbaar is.
+    var constraints = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } };
+    return navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      var ctx = null, rawStream = stream, recStream = stream;
+      try {
+        ctx = new AC();
+        var src = ctx.createMediaStreamSource(stream);
+        var gain = ctx.createGain(); gain.gain.value = 3.0;
+        var comp = ctx.createDynamicsCompressor();
+        var dest = ctx.createMediaStreamDestination();
+        src.connect(gain); gain.connect(comp); comp.connect(dest);
+        recStream = dest.stream;
+        if (ctx.state === "suspended") ctx.resume();
+      } catch (e) { recStream = stream; }
       prChunks = [];
-      prRec = new MediaRecorder(stream);
+      prRec = new MediaRecorder(recStream);
       prRec.ondataavailable = function (e) { prChunks.push(e.data); };
       prRec.onstop = function () {
-        stream.getTracks().forEach(function (t) { t.stop(); });
+        rawStream.getTracks().forEach(function (t) { t.stop(); });
+        if (ctx) { try { ctx.close(); } catch (e) {} }
         if (prUrl) URL.revokeObjectURL(prUrl);
         prUrl = URL.createObjectURL(new Blob(prChunks, { type: prRec.mimeType || "audio/webm" }));
         onStop && onStop(prUrl);

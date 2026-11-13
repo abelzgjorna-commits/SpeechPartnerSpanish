@@ -1,6 +1,6 @@
 {
-  "name": "Gespreksgids Spaans",
-  "short_name": "Spaans",
+  "name": "SpeechPartner.Spanish",
+  "short_name": "SpeechPartner",
   "description": "Zinnen, vertaling en oefening voor een gesprek in het Spaans.",
   "lang": "nl",
   "start_url": "./",

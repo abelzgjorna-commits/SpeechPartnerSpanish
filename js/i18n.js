@@ -3,7 +3,7 @@
 function m(nl, en, de, fr) { return { nl: nl, en: en, de: de, fr: fr }; }
 
 var UI = {
-  "Gespreksgids Spaans": m("Gespreksgids Spaans", "Spanish conversation guide", "Spanisch-Gesprächsführer", "Guide de conversation espagnol"),
+  "SpeechPartner.Spanish": m("SpeechPartner.Spanish", "SpeechPartner.Spanish", "SpeechPartner.Spanish", "SpeechPartner.Spanish"),
   "Instellingen": m("Instellingen", "Settings", "Einstellungen", "Paramètres"),
   "Taal": m("Taal", "Language", "Sprache", "Langue"),
   "Thema": m("Thema", "Theme", "Design", "Thème"),
@@ -157,6 +157,7 @@ var UI = {
   "gemiddeld": m("gemiddeld", "average", "Durchschnitt", "moyenne"),
   "Wis voortgang uitspraak": m("Wis voortgang uitspraak", "Clear pronunciation progress", "Aussprache-Fortschritt löschen", "Effacer la progression de prononciation"),
   "Vorige": m("Vorige", "Previous", "Zurück", "Précédent"),
+  "Woordenlijst: Wiktionary, CC BY-SA 4.0, via kaikki.org": m("Woordenlijst: Wiktionary, CC BY-SA 4.0, via kaikki.org", "Word list: Wiktionary, CC BY-SA 4.0, via kaikki.org", "Wortliste: Wiktionary, CC BY-SA 4.0, über kaikki.org", "Liste de mots : Wiktionary, CC BY-SA 4.0, via kaikki.org"),
 };
 
 // Labels voor reacties (Ik vraag / Vriend vertelt)

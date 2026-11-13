@@ -34,6 +34,7 @@ if (typeof DICT_EXTRA !== "undefined") {
   ["nl", "en", "de", "fr"].forEach(function (l) {
     if (DICT_EXTRA[l]) DICT_RAW[l] += "|" + DICT_EXTRA[l];
     if (DICT_EXTRA._more && DICT_EXTRA._more[l]) DICT_RAW[l] += "|" + DICT_EXTRA._more[l];
+    if (typeof DICT_WIKI !== "undefined" && DICT_WIKI[l]) DICT_RAW[l] += "|" + DICT_WIKI[l];
   });
 }
 var DICTS = {}, PHRASES_BY_LANG = {}, REVS = {};
