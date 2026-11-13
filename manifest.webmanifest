@@ -1,6 +1,6 @@
 {
-  "name": "SpeechPartner.Spanish",
-  "short_name": "SpeechPartner",
+  "name": "Speech Partner.Spanish",
+  "short_name": "Speech Partner",
   "description": "Zinnen, vertaling en oefening voor een gesprek in het Spaans.",
   "lang": "nl",
   "start_url": "./",

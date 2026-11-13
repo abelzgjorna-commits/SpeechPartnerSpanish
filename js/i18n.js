@@ -3,7 +3,7 @@
 function m(nl, en, de, fr) { return { nl: nl, en: en, de: de, fr: fr }; }
 
 var UI = {
-  "SpeechPartner.Spanish": m("SpeechPartner.Spanish", "SpeechPartner.Spanish", "SpeechPartner.Spanish", "SpeechPartner.Spanish"),
+  "Speech Partner.Spanish": m("Speech Partner.Spanish", "Speech Partner.Spanish", "Speech Partner.Spanish", "Speech Partner.Spanish"),
   "Instellingen": m("Instellingen", "Settings", "Einstellungen", "Paramètres"),
   "Taal": m("Taal", "Language", "Sprache", "Langue"),
   "Thema": m("Thema", "Theme", "Design", "Thème"),

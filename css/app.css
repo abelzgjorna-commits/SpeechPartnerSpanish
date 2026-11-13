@@ -192,3 +192,12 @@ button.logo { border: 0; background: none; padding: 0; cursor: pointer; }
 .langmenu[hidden] { display: none; }
 .langopt { border: 0; background: none; border-radius: 8px; padding: 9px 12px; font-size: 15px; font-weight: 700; text-align: center; cursor: pointer; color: var(--ink); }
 .langopt.on { background: var(--accent); color: var(--accent-ink); }
+
+/* Logo met taallabel */
+button.logo { position: relative; }
+.logolang {
+  position: absolute; right: -6px; bottom: -4px; font-size: 10px; font-weight: 800; line-height: 1;
+  padding: 3px 5px; border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+  border: 2px solid var(--card);
+}
+h1 { font-size: 17px; }
