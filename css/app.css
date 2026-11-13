@@ -120,12 +120,16 @@ body.cafe .btn.active { color: var(--card); }
 /* ---------- Kleuren per taal: de nationale kleuren van de gekozen taal ----------
    Nederland: rood-wit-blauw · Engeland: blauw-rood-wit · Duitsland: zwart-rood-goud · Frankrijk: blauw-wit-rood
    Het café-thema behoudt zijn eigen warme kleuren. */
-body:not(.cafe)[data-lang="nl"] { --accent: #AE1C28; --accent-ink: #ffffff; --c1: #AE1C28; --c2: #ffffff; --c3: #21468B; }
-body:not(.cafe)[data-lang="en"] { --accent: #012169; --accent-ink: #ffffff; --c1: #012169; --c2: #C8102E; --c3: #ffffff; }
-body:not(.cafe)[data-lang="de"] { --accent: #DD0000; --accent-ink: #ffffff; --c1: #000000; --c2: #DD0000; --c3: #FFCE00; }
-body:not(.cafe)[data-lang="fr"] { --accent: #002395; --accent-ink: #ffffff; --c1: #002395; --c2: #ffffff; --c3: #ED2939; }
+body:not(.cafe)[data-lang="nl"] { --tint: #fbe9ea; --accent: #AE1C28; --accent-ink: #ffffff; --c1: #AE1C28; --c2: #ffffff; --c3: #21468B; }
+body:not(.cafe)[data-lang="en"] { --tint: #e6ebf6; --accent: #012169; --accent-ink: #ffffff; --c1: #012169; --c2: #C8102E; --c3: #ffffff; }
+body:not(.cafe)[data-lang="de"] { --tint: #fff4d6; --accent: #DD0000; --accent-ink: #ffffff; --c1: #000000; --c2: #DD0000; --c3: #FFCE00; }
+body:not(.cafe)[data-lang="fr"] { --tint: #e6eaf7; --accent: #002395; --accent-ink: #ffffff; --c1: #002395; --c2: #ffffff; --c3: #ED2939; }
 header.top::after {
-  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 4px; pointer-events: none;
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 6px; pointer-events: none;
   background: linear-gradient(90deg, var(--c1, var(--accent)) 0 33.33%, var(--c2, var(--card)) 33.33% 66.66%, var(--c3, var(--accent)) 66.66% 100%);
 }
 body.cafe header.top::after { display: none; }
+
+/* Zichtbaar per taal: gekleurde koptekst en actieve tab in de landskleur */
+body:not(.cafe)[data-lang] header.top { background: linear-gradient(180deg, var(--tint, var(--card)), var(--card)); }
+body:not(.cafe)[data-lang] nav.bottomnav .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
