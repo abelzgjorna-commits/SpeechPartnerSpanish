@@ -1323,6 +1323,7 @@
 
   function applyStatic() {
     document.documentElement.lang = lang;
+    document.body.setAttribute("data-lang", lang);
     document.querySelectorAll("[data-i18n]").forEach(function (n) { n.textContent = T(n.getAttribute("data-i18n")); });
     document.querySelectorAll("[data-i18n-aria]").forEach(function (n) { n.setAttribute("aria-label", T(n.getAttribute("data-i18n-aria"))); });
     document.querySelectorAll("[data-ph]").forEach(function (n) { n.placeholder = T(n.getAttribute("data-ph")); });
