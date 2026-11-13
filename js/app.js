@@ -911,8 +911,7 @@
 
   // ---- Spraak op iPhone: Whisper draait in de browser (gratis, zonder server) ----
   // De gebruiker kiest zelf of en welk spraakmodel wordt gedownload; daarna blijft het op het toestel staan.
-  var WH = { rec: null, chunks: [], stream: null, pipe: null, pending: null, files: {} };
-  var WH_LIB = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
+  var WH = { rec: null, chunks: [], stream: null, worker: null, ready: false, pending: null, jobs: {}, jobId: 0 };
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   function whSetStatus(text) {
@@ -920,34 +919,61 @@
     var n = document.getElementById("whStatus");
     if (n) n.textContent = text;
   }
+  // Het model draait in een aparte werker; laden gebeurt altijd VOOR het opnemen, nooit tijdens.
   function whLoad() {
-    if (WH.pipe) return Promise.resolve(WH.pipe);
+    if (WH.ready) return Promise.resolve(true);
     if (WH.pending) return WH.pending;
     var model = WH_MODELS[store.get("whModel", "tiny")] || WH_MODELS.tiny;
-    WH.files = {};
     S.whLoading = true;
     whSetStatus(T("Spraakmodel laden…"));
-    WH.pending = import(WH_LIB).then(function (lib) {
-      lib.env.allowLocalModels = false;
-      return lib.pipeline("automatic-speech-recognition", model, {
-        dtype: "q8",
-        device: "wasm",
-        progress_callback: function (p) {
-          if (!p || p.status !== "progress" || !p.total) return;
-          WH.files[p.file] = [p.loaded || 0, p.total];
-          var l = 0, t = 0, k;
-          for (k in WH.files) { l += WH.files[k][0]; t += WH.files[k][1]; }
-          whSetStatus(T("Spraakmodel laden…") + " " + Math.round(l / 1048576) + " / " + Math.round(t / 1048576) + " MB");
+    WH.pending = new Promise(function (resolve, reject) {
+      var w;
+      try { w = new Worker("js/whisper-worker.js", { type: "module" }); } catch (e) { reject(e); return; }
+      WH.worker = w; WH.jobs = {}; WH.jobId = 0;
+      w.onmessage = function (ev) {
+        var d = ev.data || {};
+        if (d.type === "progress") {
+          whSetStatus(T("Spraakmodel laden…") + " " + Math.round(d.loaded / 1048576) + " / " + Math.round(d.total / 1048576) + " MB");
+        } else if (d.type === "ready") {
+          resolve(true);
+        } else if (d.type === "result") {
+          if (WH.jobs[d.id]) { WH.jobs[d.id][0](d.text); delete WH.jobs[d.id]; }
+        } else if (d.type === "error") {
+          if (d.phase === "load") reject(new Error(d.message));
+          else if (WH.jobs[d.id]) { WH.jobs[d.id][1](new Error(d.message)); delete WH.jobs[d.id]; }
         }
-      });
-    }).then(function (pipe) {
-      WH.pipe = pipe; S.whLoading = false; whSetStatus("");
-      return pipe;
+      };
+      w.onerror = function (e) { reject(new Error((e && e.message) || "worker")); };
+      w.postMessage({ type: "load", model: model });
+    }).then(function () {
+      WH.ready = true; S.whLoading = false; whSetStatus("");
+      return true;
     }, function (e) {
-      WH.pending = null; S.whLoading = false; whSetStatus("");
+      WH.pending = null; WH.ready = false; S.whLoading = false; whSetStatus("");
+      if (WH.worker) { try { WH.worker.terminate(); } catch (x) {} WH.worker = null; }
       throw e;
     });
     return WH.pending;
+  }
+  function whReset() {
+    if (WH.worker) { try { WH.worker.terminate(); } catch (x) {} }
+    WH.worker = null; WH.pending = null; WH.ready = false; S.whLoading = false;
+  }
+  function whRun(audio) {
+    return new Promise(function (resolve, reject) {
+      var id = ++WH.jobId;
+      WH.jobs[id] = [resolve, reject];
+      WH.worker.postMessage({ type: "run", id: id, audio: audio }, [audio.buffer]);
+    });
+  }
+  function whLoadWithNote() {
+    return whLoad().then(function () {
+      S.note = T("Het spraakmodel is klaar. Tik op Opnemen.");
+      if (S.tab === "gesprek") render();
+    }).catch(function (e) {
+      S.note = whErr(e);
+      if (S.tab === "gesprek") render();
+    });
   }
 
   // Geluid decoderen en zelf naar 16 kHz mono omrekenen (werkt ook op oudere iPhones).
@@ -986,17 +1012,10 @@
     var row = el("div", "chips");
     function choose(kind) {
       store.set("whModel", kind);
-      WH.pipe = null; WH.pending = null;
+      whReset();
       S.whAsk = false; S.note = "";
       render();
-      whLoad().then(function () {
-        S.note = T("Het spraakmodel is klaar. Tik op Opnemen.");
-        if (S.tab === "gesprek") render();
-      }).catch(function (e) {
-        store.set("whModel", null);
-        S.note = whErr(e);
-        if (S.tab === "gesprek") render();
-      });
+      whLoadWithNote();
     }
     row.appendChild(btn(T("Snel (ongeveer 40 MB)"), "primary small", function () { choose("tiny"); }));
     row.appendChild(btn(T("Nauwkeuriger (ongeveer 80 MB, trager)"), "small", function () { choose("base"); }));
@@ -1007,7 +1026,13 @@
 
   function whStart() {
     if (!store.get("whModel", null)) { S.whAsk = true; S.note = ""; go("gesprek"); return; }
-    if (S.whLoading && !WH.pipe) { S.note = T("Het spraakmodel wordt nog geladen. Wacht even."); go("gesprek"); return; }
+    if (!WH.ready) {
+      // Eerst het model laden (uit de opslag van het toestel), pas daarna opnemen.
+      S.note = T("Het spraakmodel wordt nog geladen. Wacht even.");
+      go("gesprek");
+      whLoadWithNote();
+      return;
+    }
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
       WH.stream = stream; WH.chunks = [];
       var rec = new MediaRecorder(stream);
@@ -1020,7 +1045,6 @@
       S.note = T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
       go("gesprek");
     });
-    whLoad().catch(function () {}); // model (uit de opslag) alvast laden terwijl je praat
   }
 
   function whFinish(rec) {
@@ -1031,12 +1055,8 @@
     var blob = new Blob(WH.chunks, { type: rec.mimeType || "audio/mp4" });
     WH.chunks = [];
     if (!blob.size) { S.note = T("Geen spraak gehoord. Probeer het opnieuw."); go("gesprek"); return; }
-    Promise.all([whDecode(blob), whLoad()]).then(function (r) {
-      var opts = { language: "spanish", task: "transcribe" };
-      if (r[0].length > 30 * 16000) opts.chunk_length_s = 30;
-      return r[1](r[0], opts);
-    }).then(function (out) {
-      var text = out && out.text ? String(out.text).trim() : "";
+    whDecode(blob).then(function (audio) { return whRun(audio); }).then(function (out) {
+      var text = String(out || "").trim();
       S.note = "";
       // Whisper zet stilte of ruis soms om in (música) of [Music]: dat telt niet als zin.
       var junk = /^[\(\[\{].*[\)\]\}]$/.test(text) || /^[\W_]+$/.test(text);
@@ -1123,6 +1143,7 @@
     if (S.note) w.appendChild(el("div", "bad", S.note));
     if (isIOS()) {
       if (S.whAsk) w.appendChild(whConsentCard());
+      else if (store.get("whModel", null) && !WH.ready && !WH.pending) whLoadWithNote();
       var ws = el("div", "note", S.whStatus || "");
       ws.id = "whStatus";
       w.appendChild(ws);
