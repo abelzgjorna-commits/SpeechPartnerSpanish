@@ -876,9 +876,13 @@
     return { es: text.trim(), tr: esToLang(text), options: replies.concat(fu) };
   }
 
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
   function errorText(code) {
     if (code === "not-allowed" || code === "service-not-allowed") return T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
     if (code === "no-speech") return T("Geen spraak gehoord. Probeer het opnieuw.");
+    if (code === "audio-capture" && isIOS()) return T("Op iPhone werkt spraakherkenning in Safari vaak niet. Typ hieronder wat je gesprekspartner zei.");
     if (code === "audio-capture") return T("De microfoon kan niet worden gebruikt. Sluit andere apps of tabbladen die de microfoon gebruiken, controleer de microfoon-toegang van je browser, of typ hieronder.");
     return T("Spraakherkenning gaf een fout") + " (" + code + "). " + T("Typ hieronder wat je gesprekspartner zei.");
   }
@@ -953,6 +957,7 @@
     if (S.convo.length) row.appendChild(btn(T("Wis gesprek"), "small", function () { S.convo = []; S.note = ""; render(); }));
     w.appendChild(row);
     if (S.note) w.appendChild(el("div", "bad", S.note));
+    if (isIOS()) w.appendChild(el("div", "note", T("Op iPhone werkt spraakherkenning in Safari vaak niet. Typ hieronder wat je gesprekspartner zei.")));
     w.appendChild(el("div", "note", T("Spraak hangt af van je browser. Het typvak werkt altijd.")));
 
     var box = el("div", "card");
