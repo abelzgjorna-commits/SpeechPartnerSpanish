@@ -910,47 +910,104 @@
   }
 
   // ---- Spraak op iPhone: Whisper draait in de browser (gratis, zonder server) ----
-  var WH = { rec: null, chunks: [], stream: null, pipe: null, pending: null };
+  // De gebruiker kiest zelf of en welk spraakmodel wordt gedownload; daarna blijft het op het toestel staan.
+  var WH = { rec: null, chunks: [], stream: null, pipe: null, pending: null, files: {} };
   var WH_LIB = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
-  var WH_MODEL = "onnx-community/whisper-base";
+  var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
+  function whSetStatus(text) {
+    S.whStatus = text;
+    var n = document.getElementById("whStatus");
+    if (n) n.textContent = text;
+  }
   function whLoad() {
     if (WH.pipe) return Promise.resolve(WH.pipe);
     if (WH.pending) return WH.pending;
+    var model = WH_MODELS[store.get("whModel", "tiny")] || WH_MODELS.tiny;
+    WH.files = {};
+    S.whLoading = true;
+    whSetStatus(T("Spraakmodel laden…"));
     WH.pending = import(WH_LIB).then(function (lib) {
       lib.env.allowLocalModels = false;
-      return lib.pipeline("automatic-speech-recognition", WH_MODEL, {
+      return lib.pipeline("automatic-speech-recognition", model, {
         dtype: "q8",
         device: "wasm",
         progress_callback: function (p) {
-          if (p && p.status === "progress" && !S.listening && S.tab === "gesprek") {
-            S.note = T("Spraakmodel wordt geladen (eenmalig, ongeveer 80 MB)") + ": " + Math.round(p.progress || 0) + "%";
-            render();
-          }
+          if (!p || p.status !== "progress" || !p.total) return;
+          WH.files[p.file] = [p.loaded || 0, p.total];
+          var l = 0, t = 0, k;
+          for (k in WH.files) { l += WH.files[k][0]; t += WH.files[k][1]; }
+          whSetStatus(T("Spraakmodel laden…") + " " + Math.round(l / 1048576) + " / " + Math.round(t / 1048576) + " MB");
         }
       });
-    }).then(function (pipe) { WH.pipe = pipe; return pipe; }, function (e) { WH.pending = null; throw e; });
+    }).then(function (pipe) {
+      WH.pipe = pipe; S.whLoading = false; whSetStatus("");
+      return pipe;
+    }, function (e) {
+      WH.pending = null; S.whLoading = false; whSetStatus("");
+      throw e;
+    });
     return WH.pending;
   }
 
-  // Geluid decoderen en naar 16 kHz mono brengen, zoals het model verwacht.
+  // Geluid decoderen en zelf naar 16 kHz mono omrekenen (werkt ook op oudere iPhones).
   function whDecode(blob) {
     return blob.arrayBuffer().then(function (buf) {
       var AC = window.AudioContext || window.webkitAudioContext;
       var ac = new AC();
       return new Promise(function (res, rej) { ac.decodeAudioData(buf, res, rej); }).then(function (audio) {
         try { if (ac.state !== "closed") ac.close().catch(function () {}); } catch (e) {}
-        var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        var n = Math.max(1, Math.ceil(audio.duration * 16000));
-        var off = new OAC(1, n, 16000);
-        var src = off.createBufferSource();
-        src.buffer = audio; src.connect(off.destination); src.start(0);
-        return off.startRendering();
-      }).then(function (out) { return out.getChannelData(0); });
+        var ch = audio.numberOfChannels, len = audio.length, mono = new Float32Array(len), c, i;
+        for (c = 0; c < ch; c++) {
+          var d = audio.getChannelData(c);
+          for (i = 0; i < len; i++) mono[i] += d[i] / ch;
+        }
+        var ratio = audio.sampleRate / 16000;
+        var n = Math.max(1, Math.floor(len / ratio)), out = new Float32Array(n);
+        for (i = 0; i < n; i++) {
+          var pos = i * ratio, i0 = Math.floor(pos), i1 = Math.min(i0 + 1, len - 1), f = pos - i0;
+          out[i] = mono[i0] * (1 - f) + mono[i1] * f;
+        }
+        return out;
+      });
     });
   }
 
+  function whErr(e) {
+    var msg = e && (e.message || e.name) ? String(e.message || e.name).slice(0, 120) : "";
+    return T("Spraakherkenning gaf een fout") + (msg ? " (" + msg + ")" : "") + ". " + T("Typ hieronder wat je gesprekspartner zei.");
+  }
+
+  // Keuzekaart: toestemming voor het downloaden van het spraakmodel
+  function whConsentCard() {
+    var c = el("div", "card panel");
+    c.appendChild(el("div", "sec-title", T("Spraakmodel downloaden?")));
+    c.appendChild(el("div", "", T("Om Spaans te verstaan op de iPhone downloadt de app eenmalig een spraakmodel. Het blijft daarna op je toestel staan en werkt ook zonder internet. Gebruik bij voorkeur wifi.")));
+    var row = el("div", "chips");
+    function choose(kind) {
+      store.set("whModel", kind);
+      WH.pipe = null; WH.pending = null;
+      S.whAsk = false; S.note = "";
+      render();
+      whLoad().then(function () {
+        S.note = T("Het spraakmodel is klaar. Tik op Opnemen.");
+        if (S.tab === "gesprek") render();
+      }).catch(function (e) {
+        store.set("whModel", null);
+        S.note = whErr(e);
+        if (S.tab === "gesprek") render();
+      });
+    }
+    row.appendChild(btn(T("Snel (ongeveer 40 MB)"), "primary small", function () { choose("tiny"); }));
+    row.appendChild(btn(T("Nauwkeuriger (ongeveer 80 MB, trager)"), "small", function () { choose("base"); }));
+    row.appendChild(btn(T("Niet nu"), "small", function () { S.whAsk = false; render(); }));
+    c.appendChild(row);
+    return c;
+  }
+
   function whStart() {
+    if (!store.get("whModel", null)) { S.whAsk = true; S.note = ""; go("gesprek"); return; }
+    if (S.whLoading && !WH.pipe) { S.note = T("Het spraakmodel wordt nog geladen. Wacht even."); go("gesprek"); return; }
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
       WH.stream = stream; WH.chunks = [];
       var rec = new MediaRecorder(stream);
@@ -961,23 +1018,23 @@
       updateMic(); render();
     }).catch(function () {
       S.note = T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
-      render();
+      go("gesprek");
     });
-    whLoad().catch(function () {}); // model alvast laden terwijl je praat
+    whLoad().catch(function () {}); // model (uit de opslag) alvast laden terwijl je praat
   }
 
   function whFinish(rec) {
     if (WH.stream) { WH.stream.getTracks().forEach(function (t) { t.stop(); }); WH.stream = null; }
     S.listening = false; S.wrec = false; WH.rec = null;
     S.note = T("Bezig met verwerken…");
-    updateMic(); render();
+    updateMic(); go("gesprek");
     var blob = new Blob(WH.chunks, { type: rec.mimeType || "audio/mp4" });
     WH.chunks = [];
+    if (!blob.size) { S.note = T("Geen spraak gehoord. Probeer het opnieuw."); go("gesprek"); return; }
     Promise.all([whDecode(blob), whLoad()]).then(function (r) {
-      var pipe = r[1];
       var opts = { language: "spanish", task: "transcribe" };
-      if (blob.size > 0 && r[0].length > 30 * 16000) opts.chunk_length_s = 30;
-      return pipe(r[0], opts);
+      if (r[0].length > 30 * 16000) opts.chunk_length_s = 30;
+      return r[1](r[0], opts);
     }).then(function (out) {
       var text = out && out.text ? String(out.text).trim() : "";
       S.note = "";
@@ -986,8 +1043,8 @@
       if (text.length >= 2 && !junk) S.convo.push(makeTurn(text));
       else S.note = T("Geen spraak gehoord. Probeer het opnieuw.");
       go("gesprek");
-    }).catch(function () {
-      S.note = T("Spraakherkenning gaf een fout") + ". " + T("Typ hieronder wat je gesprekspartner zei.");
+    }).catch(function (e) {
+      S.note = whErr(e);
       go("gesprek");
     });
   }
@@ -1064,7 +1121,15 @@
     if (S.convo.length) row.appendChild(btn(T("Wis gesprek"), "small", function () { S.convo = []; S.note = ""; render(); }));
     w.appendChild(row);
     if (S.note) w.appendChild(el("div", "bad", S.note));
-    if (isIOS()) w.appendChild(el("div", "note", T("Op iPhone gebruikt de app een spraakmodel dat in je browser draait. Het eerste gebruik downloadt het model (ongeveer 80 MB).")));
+    if (isIOS()) {
+      if (S.whAsk) w.appendChild(whConsentCard());
+      var ws = el("div", "note", S.whStatus || "");
+      ws.id = "whStatus";
+      w.appendChild(ws);
+      if (store.get("whModel", null) && !S.whAsk && !S.listening) {
+        w.appendChild(btn(T("Spraakmodel wijzigen"), "small", function () { S.whAsk = true; render(); }));
+      }
+    }
     w.appendChild(el("div", "note", T("Spraak hangt af van je browser. Het typvak werkt altijd.")));
 
     var box = el("div", "card");
