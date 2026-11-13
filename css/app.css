@@ -28,7 +28,7 @@ header.top {
   padding-top: calc(10px + env(safe-area-inset-top));
 }
 .brand { display: flex; align-items: center; gap: 10px; }
-.logo svg { width: 42px; height: 42px; display: block; }
+.logo svg { width: 52px; height: 52px; display: block; }
 .iconbtn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
 .transbar { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
 .transbar input {

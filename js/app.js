@@ -1439,21 +1439,21 @@
     return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" aria-hidden="true">' + flagInner(code, w, h) + '</svg>';
   }
 
+  // Logo: taalvlag (linksboven) en Spaanse vlag (rechtsonder). Geen geneste SVG's of clip-paden,
+  // want die tonen op iPhone-Safari niet betrouwbaar; de vlaggen zijn gewone rechthoeken.
   function renderLogo() {
     var code = lang.toUpperCase();
-    var lf = "logoL" + lang, ef = "logoES";
+    var A = { x: 3, y: 5, w: 32, h: 24 }, B = { x: 29, y: 27, w: 32, h: 24 };
+    function tile(b, c, id) {
+      return '<clipPath id="' + id + '"><rect x="' + b.x + '" y="' + b.y + '" width="' + b.w + '" height="' + b.h + '" rx="7"/></clipPath>' +
+        '<g clip-path="url(#' + id + ')"><g transform="translate(' + b.x + ',' + b.y + ')">' + c + '</g></g>';
+    }
     document.getElementById("logo").innerHTML =
       '<svg viewBox="0 0 64 64" aria-hidden="true">' +
-      '<defs>' +
-      '<clipPath id="' + lf + '"><rect x="3" y="5" width="32" height="24" rx="7"/></clipPath>' +
-      '<clipPath id="' + ef + '"><rect x="29" y="27" width="32" height="24" rx="7"/></clipPath>' +
-      '</defs>' +
-      '<g clip-path="url(#' + lf + ')"><svg x="3" y="5" width="32" height="24" viewBox="0 0 32 24" preserveAspectRatio="none">' + flagInner(lang, 32, 24) + '</svg></g>' +
-      '<path d="M10 28 L8 37 L19 28 Z" style="fill:var(--accent)"/>' +
-      '<g clip-path="url(#' + ef + ')"><svg x="29" y="27" width="32" height="24" viewBox="0 0 32 24" preserveAspectRatio="none">' + flagInner("es", 32, 24) + '</svg></g>' +
-      '<path d="M50 50 L56 59 L43 50 Z" style="fill:#AA151B"/>' +
-      '<text x="19" y="22" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" stroke="#000" stroke-width="2.2" paint-order="stroke" font-family="system-ui,sans-serif">' + code + '</text>' +
-      '<text x="45" y="43" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" stroke="#000" stroke-width="2.2" paint-order="stroke" font-family="system-ui,sans-serif">ES</text>' +
+      tile(A, flagInner(lang, A.w, A.h), "logoA") +
+      tile(B, flagInner("es", B.w, B.h), "logoB") +
+      '<text x="19" y="22" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="system-ui,sans-serif">' + code + '</text>' +
+      '<text x="45" y="43" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" stroke="#000" stroke-width="2.4" paint-order="stroke" font-family="system-ui,sans-serif">ES</text>' +
       '</svg>';
   }
 
