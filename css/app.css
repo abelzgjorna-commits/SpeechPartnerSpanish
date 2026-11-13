@@ -133,3 +133,18 @@ body.cafe header.top::after { display: none; }
 /* Zichtbaar per taal: gekleurde koptekst en actieve tab in de landskleur */
 body:not(.cafe)[data-lang] header.top { background: linear-gradient(180deg, var(--tint, var(--card)), var(--card)); }
 body:not(.cafe)[data-lang] nav.bottomnav .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* Vlag van de gekozen taal, altijd zichtbaar in de koptekst */
+.flagbtn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; width: 40px; height: 40px; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.flagbtn #flag svg { display: block; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+
+/* Sfeer per land: achtergrond, koppen en koptekst in de nationale kleuren (het café-thema blijft apart) */
+body:not(.cafe)[data-lang="nl"] { --bg: #fdf5f5; --tint: #f6d9dc; }
+body:not(.cafe)[data-lang="en"] { --bg: #f3f5fb; --tint: #d9e1f2; }
+body:not(.cafe)[data-lang="de"] { --bg: #fbf7e6; --tint: #f7e7a6; }
+body:not(.cafe)[data-lang="fr"] { --bg: #f3f5fc; --tint: #d9e0f3; }
+body:not(.cafe)[data-lang] h1 { color: var(--accent); }
+body:not(.cafe)[data-lang] h2 { color: var(--accent); }
+body:not(.cafe)[data-lang] .card { border-top: 3px solid var(--c1, var(--accent)); }
+body:not(.cafe)[data-lang="de"] h1, body:not(.cafe)[data-lang="de"] h2 { color: #000000; }
+body:not(.cafe)[data-lang="de"] h1 { border-bottom: 4px solid #FFCE00; padding-bottom: 2px; }

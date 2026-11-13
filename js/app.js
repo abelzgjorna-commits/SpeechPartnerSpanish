@@ -1410,16 +1410,50 @@
     regels: viewRegels, gesprek: viewGesprek, uitspraak: viewUitspraak
   };
 
+  // Vlaggen als SVG (overal gelijk; geen emoji nodig). Spaans is altijd rood-geel-rood.
+  var FLAG_BANDS = {
+    nl: { dir: "h", c: ["#AE1C28", "#FFFFFF", "#21468B"] },
+    de: { dir: "h", c: ["#000000", "#DD0000", "#FFCE00"] },
+    fr: { dir: "v", c: ["#002395", "#FFFFFF", "#ED2939"] },
+    es: { dir: "h", c: ["#AA151B", "#F1BF00", "#AA151B"] }
+  };
+  function flagInner(code, w, h) {
+    if (code === "en") {
+      return '<rect width="' + w + '" height="' + h + '" fill="#012169"/>' +
+        '<path d="M0,0 L' + w + ',' + h + ' M' + w + ',0 L0,' + h + '" stroke="#FFFFFF" stroke-width="' + (h * 0.2) + '"/>' +
+        '<path d="M0,0 L' + w + ',' + h + ' M' + w + ',0 L0,' + h + '" stroke="#C8102E" stroke-width="' + (h * 0.07) + '"/>' +
+        '<path d="M' + (w / 2) + ',0 V' + h + ' M0,' + (h / 2) + ' H' + w + '" stroke="#FFFFFF" stroke-width="' + (h * 0.33) + '"/>' +
+        '<path d="M' + (w / 2) + ',0 V' + h + ' M0,' + (h / 2) + ' H' + w + '" stroke="#C8102E" stroke-width="' + (h * 0.2) + '"/>';
+    }
+    var f = FLAG_BANDS[code] || FLAG_BANDS.nl, out = "", i;
+    for (i = 0; i < 3; i++) {
+      if (f.dir === "h") out += '<rect x="0" y="' + (i * h / 3) + '" width="' + w + '" height="' + (h / 3 + 0.5) + '" fill="' + f.c[i] + '"/>';
+      else out += '<rect x="' + (i * w / 3) + '" y="0" width="' + (w / 3 + 0.5) + '" height="' + h + '" fill="' + f.c[i] + '"/>';
+    }
+    if (code === "es") { // Spanje: geel midden is breder
+      out = '<rect width="' + w + '" height="' + h + '" fill="#AA151B"/><rect y="' + h * 0.25 + '" width="' + w + '" height="' + h * 0.5 + '" fill="#F1BF00"/>';
+    }
+    return out;
+  }
+  function flagSVG(code, w, h) {
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" aria-hidden="true">' + flagInner(code, w, h) + '</svg>';
+  }
+
   function renderLogo() {
     var code = lang.toUpperCase();
+    var lf = "logoL" + lang, ef = "logoES";
     document.getElementById("logo").innerHTML =
       '<svg viewBox="0 0 64 64" aria-hidden="true">' +
-      '<rect x="3" y="5" width="32" height="24" rx="7" style="fill:var(--accent)"/>' +
+      '<defs>' +
+      '<clipPath id="' + lf + '"><rect x="3" y="5" width="32" height="24" rx="7"/></clipPath>' +
+      '<clipPath id="' + ef + '"><rect x="29" y="27" width="32" height="24" rx="7"/></clipPath>' +
+      '</defs>' +
+      '<g clip-path="url(#' + lf + ')"><svg x="3" y="5" width="32" height="24" viewBox="0 0 32 24" preserveAspectRatio="none">' + flagInner(lang, 32, 24) + '</svg></g>' +
       '<path d="M10 28 L8 37 L19 28 Z" style="fill:var(--accent)"/>' +
-      '<rect x="29" y="27" width="32" height="24" rx="7" style="fill:var(--ink)"/>' +
-      '<path d="M50 50 L56 59 L43 50 Z" style="fill:var(--ink)"/>' +
-      '<text x="19" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">' + code + '</text>' +
-      '<text x="45" y="43" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">ES</text>' +
+      '<g clip-path="url(#' + ef + ')"><svg x="29" y="27" width="32" height="24" viewBox="0 0 32 24" preserveAspectRatio="none">' + flagInner("es", 32, 24) + '</svg></g>' +
+      '<path d="M50 50 L56 59 L43 50 Z" style="fill:#AA151B"/>' +
+      '<text x="19" y="22" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" stroke="#000" stroke-width="2.2" paint-order="stroke" font-family="system-ui,sans-serif">' + code + '</text>' +
+      '<text x="45" y="43" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" stroke="#000" stroke-width="2.2" paint-order="stroke" font-family="system-ui,sans-serif">ES</text>' +
       '</svg>';
   }
 
@@ -1433,6 +1467,8 @@
     document.getElementById("themeSel").value = theme;
     document.body.classList.toggle("cafe", theme === "cafe");
     renderLogo();
+    var fl = document.getElementById("flag");
+    if (fl) fl.innerHTML = flagSVG(lang, 28, 19);
   }
 
   function updateMic() {
@@ -1504,6 +1540,8 @@
     document.getElementById("vtxt").addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); showTranslation(); }
     });
+    var fb = document.getElementById("flagBtn");
+    if (fb) fb.onclick = function () { document.getElementById("setBtn").click(); };
     document.getElementById("mbtn").onclick = function () {
       if (S.listening) stopMic(); else startMic();
     };
