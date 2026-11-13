@@ -887,9 +887,93 @@
     return T("Spraakherkenning gaf een fout") + " (" + code + "). " + T("Typ hieronder wat je gesprekspartner zei.");
   }
 
+  // ---- Spraak op iPhone: Whisper draait in de browser (gratis, zonder server) ----
+  var WH = { rec: null, chunks: [], stream: null, pipe: null, pending: null };
+  var WH_LIB = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
+  var WH_MODEL = "onnx-community/whisper-base";
+
+  function whLoad() {
+    if (WH.pipe) return Promise.resolve(WH.pipe);
+    if (WH.pending) return WH.pending;
+    WH.pending = import(WH_LIB).then(function (lib) {
+      lib.env.allowLocalModels = false;
+      return lib.pipeline("automatic-speech-recognition", WH_MODEL, {
+        dtype: "q8",
+        device: "wasm",
+        progress_callback: function (p) {
+          if (p && p.status === "progress" && !S.listening && S.tab === "gesprek") {
+            S.note = T("Spraakmodel wordt geladen (eenmalig, ongeveer 80 MB)") + ": " + Math.round(p.progress || 0) + "%";
+            render();
+          }
+        }
+      });
+    }).then(function (pipe) { WH.pipe = pipe; return pipe; }, function (e) { WH.pending = null; throw e; });
+    return WH.pending;
+  }
+
+  // Geluid decoderen en naar 16 kHz mono brengen, zoals het model verwacht.
+  function whDecode(blob) {
+    return blob.arrayBuffer().then(function (buf) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      var ac = new AC();
+      return new Promise(function (res, rej) { ac.decodeAudioData(buf, res, rej); }).then(function (audio) {
+        try { if (ac.state !== "closed") ac.close().catch(function () {}); } catch (e) {}
+        var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        var n = Math.max(1, Math.ceil(audio.duration * 16000));
+        var off = new OAC(1, n, 16000);
+        var src = off.createBufferSource();
+        src.buffer = audio; src.connect(off.destination); src.start(0);
+        return off.startRendering();
+      }).then(function (out) { return out.getChannelData(0); });
+    });
+  }
+
+  function whStart() {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      WH.stream = stream; WH.chunks = [];
+      var rec = new MediaRecorder(stream);
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) WH.chunks.push(e.data); };
+      rec.onstop = function () { whFinish(rec); };
+      WH.rec = rec; rec.start();
+      S.listening = true; S.wrec = true; S.note = "";
+      updateMic(); render();
+    }).catch(function () {
+      S.note = T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
+      render();
+    });
+    whLoad().catch(function () {}); // model alvast laden terwijl je praat
+  }
+
+  function whFinish(rec) {
+    if (WH.stream) { WH.stream.getTracks().forEach(function (t) { t.stop(); }); WH.stream = null; }
+    S.listening = false; S.wrec = false; WH.rec = null;
+    S.note = T("Bezig met verwerken…");
+    updateMic(); render();
+    var blob = new Blob(WH.chunks, { type: rec.mimeType || "audio/mp4" });
+    WH.chunks = [];
+    Promise.all([whDecode(blob), whLoad()]).then(function (r) {
+      var pipe = r[1];
+      var opts = { language: "spanish", task: "transcribe" };
+      if (blob.size > 0 && r[0].length > 30 * 16000) opts.chunk_length_s = 30;
+      return pipe(r[0], opts);
+    }).then(function (out) {
+      var text = out && out.text ? String(out.text).trim() : "";
+      S.note = "";
+      // Whisper zet stilte of ruis soms om in (música) of [Music]: dat telt niet als zin.
+      var junk = /^[\(\[\{].*[\)\]\}]$/.test(text) || /^[\W_]+$/.test(text);
+      if (text.length >= 2 && !junk) S.convo.push(makeTurn(text));
+      else S.note = T("Geen spraak gehoord. Probeer het opnieuw.");
+      go("gesprek");
+    }).catch(function () {
+      S.note = T("Spraakherkenning gaf een fout") + ". " + T("Typ hieronder wat je gesprekspartner zei.");
+      go("gesprek");
+    });
+  }
+
   function startMic() {
     if (S.listening) return;
     if (typeof prRelease === "function") prRelease();
+    if (isIOS() && window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) { whStart(); return; }
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     var rec = null;
     if (SR) { try { rec = new SR(); } catch (e) { rec = null; } }
@@ -941,6 +1025,7 @@
   // Stoppen: laat de herkenning eerst de laatste zin verwerken (stop, niet abort);
   // alleen als het eindsignaal dan nog ontbreekt, rond de app zelf af.
   function stopMic() {
+    if (S.wrec) { if (WH.rec && WH.rec.state !== "inactive") { try { WH.rec.stop(); } catch (e) {} } return; }
     var rec = S.rec;
     if (!rec) return;
     try { rec.stop(); } catch (e) {}
@@ -957,7 +1042,7 @@
     if (S.convo.length) row.appendChild(btn(T("Wis gesprek"), "small", function () { S.convo = []; S.note = ""; render(); }));
     w.appendChild(row);
     if (S.note) w.appendChild(el("div", "bad", S.note));
-    if (isIOS()) w.appendChild(el("div", "note", T("Op iPhone werkt spraakherkenning in Safari vaak niet. Typ hieronder wat je gesprekspartner zei.")));
+    if (isIOS()) w.appendChild(el("div", "note", T("Op iPhone gebruikt de app een spraakmodel dat in je browser draait. Het eerste gebruik downloadt het model (ongeveer 80 MB).")));
     w.appendChild(el("div", "note", T("Spraak hangt af van je browser. Het typvak werkt altijd.")));
 
     var box = el("div", "card");
