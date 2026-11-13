@@ -192,7 +192,7 @@
       if (canBuild && BUILD_STEMS[it.es]) {
         extra = el("div", "row");
         extra.appendChild(btn(T("Bouw verder →"), "primary small", function () {
-          S.build = { start: it.es, conn: null, subj: null, verb: null, neg: BUILD_STEMS[it.es].neg };
+          S.build = { start: it.es, startM: it.m, conn: null, subj: null, verb: null, neg: BUILD_STEMS[it.es].neg };
           render();
         }));
       }
@@ -286,15 +286,24 @@
     w.appendChild(hint);
 
     verb.comps.forEach(function (comp) {
-      var parts = [st.stem + (b.conn !== null ? "," : "")];
-      if (b.conn !== null) parts.push(CONN[b.conn].es);
-      parts.push(subj.es);
-      if (b.neg) parts.push("no");
-      parts.push(verb.forms[subj.i]);
-      parts.push(comp.es);
-      var es = parts.join(" ") + ".";
-      var nlParts = L(st.stemM) + (b.conn !== null ? ", " + L(CONN[b.conn].m) : "") +
-        " · " + L(subj.m) + " · " + L(verb.m) + " · " + L(comp.m);
+      // Zonder verbindingswoord: stam + zin (Creo que yo voy al cine).
+      // Met verbindingswoord: de hele startzin + verbindingswoord + zin (Creo que sí, porque yo voy al cine).
+      var clause = [subj.es];
+      if (b.neg) clause.push("no");
+      clause.push(verb.forms[subj.i]);
+      clause.push(comp.es);
+      var NEG_M = { nl: "niet", en: "not", de: "nicht", fr: "ne … pas" };
+      var gloss = L(subj.m) + (b.neg ? " · " + L(NEG_M) : "") + " · " + L(verb.m) + " · " + L(comp.m);
+      var es, nlParts;
+      if (b.conn !== null) {
+        var base = b.start.replace(/[.…\s]+$/, "");
+        es = base + ", " + CONN[b.conn].es + " " + clause.join(" ") + ".";
+        var baseM = b.startM ? String(L(b.startM)).replace(/[.…\s]+$/, "") : L(st.stemM);
+        nlParts = baseM + ", " + L(CONN[b.conn].m) + " · " + gloss;
+      } else {
+        es = st.stem + " " + clause.join(" ") + ".";
+        nlParts = L(st.stemM) + " · " + gloss;
+      }
       var card = el("div", "card");
       var line = el("div", "line-row");
       var tx = el("div", "txt");
@@ -415,14 +424,23 @@
         subjIdx = i; subjP = ANA_SUBJ[t.low];
       }
     });
-    var verbDone = false;
-    toks.forEach(function (t) {
-      if (verbDone) return;
+    // Het werkwoord dat bij het onderwerp hoort, is het eerste werkwoord NA dat onderwerp
+    // (in "Creo que él va" hoort él bij va, niet bij creo).
+    var verbIdx = -1;
+    toks.forEach(function (t, i) { if (verbIdx < 0 && FORM_MAP[t.low] && i > subjIdx) verbIdx = i; });
+    var pairWithSubj = subjIdx >= 0 && verbIdx >= 0;
+    if (verbIdx < 0) toks.forEach(function (t, i) { if (verbIdx < 0 && FORM_MAP[t.low]) verbIdx = i; });
+    toks.forEach(function (t, i) {
+      if (i !== verbIdx) return;
       var cands = FORM_MAP[t.low];
-      if (!cands) return;
-      verbDone = true;
       var c0 = cands[0];
-      if (subjP === null) {
+      if (!pairWithSubj) {
+        // Staat er een zelfstandig naamwoord als onderwerp voor (La película es...), dan is er niets weggelaten.
+        var nounSubj = toks.slice(0, i).some(function (x) { return ["el", "la", "los", "las", "un", "una", "mi", "tu", "su", "mis", "tus", "sus", "este", "esta"].indexOf(x.low) >= 0; });
+        if (nounSubj) {
+          good.push({ nl: t.core + " is een vorm van " + c0.inf + ".", en: t.core + " is a form of " + c0.inf + ".", de: t.core + " ist eine Form von " + c0.inf + ".", fr: t.core + " est une forme de " + c0.inf + "." });
+          return;
+        }
         good.push({ nl: t.core + " is een vorm van " + c0.inf + ". Het onderwerp is weggelaten, dat kan als de vorm duidelijk is.", en: t.core + " is a form of " + c0.inf + ". The subject is left out, which is fine when the form is clear.", de: t.core + " ist eine Form von " + c0.inf + ". Das Subjekt fehlt, das geht, wenn die Form klar ist.", fr: t.core + " est une forme de " + c0.inf + ". Le sujet est omis, ce qui va si la forme est claire." });
         return;
       }
@@ -472,17 +490,21 @@
     var hasEstar = has(["estoy", "estás", "está", "estamos", "están"]);
     var hasSer = has(["soy", "eres", "es", "somos", "son"]);
     if (hasEstar && has(NAT)) bad.push({ nl: "Nationaliteit gebruik je met ser: soy holandés. Estar is voor een toestand of een plek.", en: "Nationality goes with ser: soy holandés. Estar is for a state or a place.", de: "Nationalität benutzt man mit ser: soy holandés. Estar ist für einen Zustand oder einen Ort.", fr: "La nationalité va avec ser : soy holandés. Estar sert pour un état ou un lieu." });
-    if (hasSer && has(STATE)) bad.push({ nl: "Een tijdelijke toestand gebruik je met estar: estoy cansado.", en: "A temporary state goes with estar: estoy cansado.", de: "Ein vorübergehender Zustand wird mit estar gesagt: estoy cansado.", fr: "Un état temporaire va avec estar : estoy cansado." });
+    if (hasSer && has(STATE.filter(function (x) { return x !== "triste"; }))) bad.push({ nl: "Een tijdelijke toestand gebruik je met estar: estoy cansado.", en: "A temporary state goes with estar: estoy cansado.", de: "Ein vorübergehender Zustand wird mit estar gesagt: estoy cansado.", fr: "Un état temporaire va avec estar : estoy cansado." });
     if (hasEstar && (has(STATE) || has(["aquí", "allí", "en"]))) good.push({ nl: "Estar past bij een toestand of plek.", en: "Estar fits a state or a place.", de: "Estar passt zu einem Zustand oder Ort.", fr: "Estar convient pour un état ou un lieu." });
 
     // Bijvoeglijk naamwoord
     if (subjP !== null && (hasEstar || hasSer)) {
-      var fem = (toks[subjIdx].low === "ella" || toks[subjIdx].low === "ellas");
+      var sl = toks[subjIdx].low;
+      var fem = (sl === "ella" || sl === "ellas" || sl === "nosotras");
+      // Bij yo, tú, usted en ustedes hangt het geslacht van de spreker af: -o en -a zijn dan allebei goed.
+      var genderKnown = ["él", "ella", "ellos", "ellas", "nosotros", "nosotras"].indexOf(sl) >= 0;
       var plur = (subjP === 3 || subjP === 4);
       toks.forEach(function (t) {
         var mm = t.low.match(/^(.*?)(os|as|o|a)$/);
         if (!mm || ADJ_STEMS.indexOf(mm[1]) < 0) return;
-        var expected = mm[1] + (fem ? "a" : "o") + (plur ? "s" : "");
+        var isF = /as?$/.test(mm[2]);
+        var expected = mm[1] + ((genderKnown ? fem : isF) ? "a" : "o") + (plur ? "s" : "");
         if (t.low !== expected) {
           bad.push({ nl: "Het bijvoeglijk naamwoord past bij het onderwerp: " + expected + " (niet " + t.core + ").", en: "The adjective must match the subject: " + expected + " (not " + t.core + ").", de: "Das Adjektiv passt zum Subjekt: " + expected + " (nicht " + t.core + ").", fr: "L'adjectif doit correspondre au sujet : " + expected + " (pas " + t.core + ")." });
           t.fix = expected;
@@ -716,7 +738,7 @@
     var w = el("div");
     GRAMMAR.forEach(function (g) {
       var c = el("div", "card");
-      c.appendChild(el("div", "sec-title", g.titel));
+      c.appendChild(el("div", "sec-title", typeof g.titel === "string" ? g.titel : L(g.titel)));
       c.appendChild(el("div", "", L(g.regel)));
       var line = el("div", "line-row");
       var tx = el("div", "txt");
