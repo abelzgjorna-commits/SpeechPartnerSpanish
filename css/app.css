@@ -41,7 +41,13 @@ header.top {
   border-radius: var(--radius); background: var(--card); padding: 10px 12px; position: relative;
 }
 .transout .close { position: absolute; top: 4px; right: 6px; border: none; background: none; font-size: 20px; cursor: pointer; color: var(--muted); }
-.settings { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--card); }
+.settings {
+  margin-top: 0; max-height: 0; opacity: 0; overflow: hidden; padding: 0 12px; border: 0 solid var(--line);
+  border-radius: var(--radius); background: var(--card);
+  transition: max-height .3s ease, opacity .2s ease, margin-top .3s ease, padding .3s ease;
+}
+.settings.open { max-height: 420px; opacity: 1; margin-top: 8px; padding: 10px 12px; border-width: 1px; }
+.logo { cursor: pointer; }
 .setrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 6px 0; }
 .setrow label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); flex: 1; min-width: 150px; }
 .setrow label.grow { flex: 1 1 100%; }
@@ -134,9 +140,6 @@ body.cafe header.top::after { display: none; }
 body:not(.cafe)[data-lang] header.top { background: linear-gradient(180deg, var(--tint, var(--card)), var(--card)); }
 body:not(.cafe)[data-lang] nav.bottomnav .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
-/* Vlag van de gekozen taal, altijd zichtbaar in de koptekst */
-.flagbtn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; width: 40px; height: 40px; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.flagbtn #flag svg { display: block; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
 
 /* Sfeer per land: achtergrond, koppen en koptekst in de nationale kleuren (het café-thema blijft apart) */
 body:not(.cafe)[data-lang="nl"] { --bg: #fdf5f5; --tint: #f6d9dc; }
@@ -148,3 +151,31 @@ body:not(.cafe)[data-lang] h2 { color: var(--accent); }
 body:not(.cafe)[data-lang] .card { border-top: 3px solid var(--c1, var(--accent)); }
 body:not(.cafe)[data-lang="de"] h1, body:not(.cafe)[data-lang="de"] h2 { color: #000000; }
 body:not(.cafe)[data-lang="de"] h1 { border-bottom: 4px solid #FFCE00; padding-bottom: 2px; }
+
+/* ---------- Uitstraling per land (aantrekkelijker, het café-thema blijft apart) ---------- */
+body:not(.cafe)[data-lang] {
+  background:
+    radial-gradient(120% 60% at 50% -10%, var(--tint) 0%, transparent 70%),
+    var(--bg);
+}
+body:not(.cafe)[data-lang] header.top {
+  background: linear-gradient(180deg, var(--tint), var(--card) 85%);
+  box-shadow: 0 6px 18px -12px rgba(0,0,0,.35);
+}
+body:not(.cafe)[data-lang] h1 { font-weight: 800; letter-spacing: -.2px; }
+body:not(.cafe)[data-lang] .card {
+  border-radius: 16px; border-top: 3px solid var(--c1, var(--accent));
+  box-shadow: 0 6px 18px -14px rgba(0,0,0,.35);
+}
+body:not(.cafe)[data-lang] .btn.primary {
+  background: linear-gradient(180deg, var(--accent), var(--accent));
+  box-shadow: 0 4px 12px -6px var(--accent);
+  border-radius: 999px;
+}
+body:not(.cafe)[data-lang] .btn { border-radius: 999px; }
+body:not(.cafe)[data-lang] nav.bottomnav {
+  background: rgba(255,255,255,.92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 -6px 18px -12px rgba(0,0,0,.35);
+  border-top: 3px solid var(--c1, var(--accent));
+}
+body:not(.cafe)[data-lang] nav.bottomnav .btn.active { box-shadow: 0 4px 10px -6px var(--accent); }

@@ -1467,8 +1467,6 @@
     document.getElementById("themeSel").value = theme;
     document.body.classList.toggle("cafe", theme === "cafe");
     renderLogo();
-    var fl = document.getElementById("flag");
-    if (fl) fl.innerHTML = flagSVG(lang, 28, 19);
   }
 
   function updateMic() {
@@ -1525,10 +1523,15 @@
       store.set("theme", theme);
       applyStatic();
     });
-    document.getElementById("setBtn").onclick = function () {
+    // Taalopties schuiven onder de koptekst uit: via het logo, de vlag of het instellingenwiel.
+    function toggleSettings() {
       var p = document.getElementById("settings");
-      p.hidden = !p.hidden;
-    };
+      var open = !p.classList.contains("open");
+      p.classList.toggle("open", open);
+      p.setAttribute("aria-hidden", open ? "false" : "true");
+    }
+    document.getElementById("setBtn").onclick = toggleSettings;
+    document.getElementById("logo").onclick = toggleSettings;
     document.getElementById("resetUnd").onclick = function () {
       store.set("begrepen", []); render();
     };
@@ -1540,8 +1543,6 @@
     document.getElementById("vtxt").addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); showTranslation(); }
     });
-    var fb = document.getElementById("flagBtn");
-    if (fb) fb.onclick = function () { document.getElementById("setBtn").click(); };
     document.getElementById("mbtn").onclick = function () {
       if (S.listening) stopMic(); else startMic();
     };
