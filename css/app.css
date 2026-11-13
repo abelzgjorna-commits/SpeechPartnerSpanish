@@ -179,3 +179,16 @@ body:not(.cafe)[data-lang] nav.bottomnav {
   border-top: 3px solid var(--c1, var(--accent));
 }
 body:not(.cafe)[data-lang] nav.bottomnav .btn.active { box-shadow: 0 4px 10px -6px var(--accent); }
+
+/* Klein taalmenu onder het logo */
+.brand { position: relative; }
+button.logo { border: 0; background: none; padding: 0; cursor: pointer; }
+.langmenu {
+  position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px; padding: 4px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 56px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 10px 24px -12px rgba(0,0,0,.45);
+}
+.langmenu[hidden] { display: none; }
+.langopt { border: 0; background: none; border-radius: 8px; padding: 9px 12px; font-size: 15px; font-weight: 700; text-align: center; cursor: pointer; color: var(--ink); }
+.langopt.on { background: var(--accent); color: var(--accent-ink); }

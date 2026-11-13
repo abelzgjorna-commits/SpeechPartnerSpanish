@@ -1553,7 +1553,30 @@
       p.setAttribute("aria-hidden", open ? "false" : "true");
     }
     document.getElementById("setBtn").onclick = toggleSettings;
-    document.getElementById("logo").onclick = toggleSettings;
+    // Tik op het logo: klein lijstje met alleen de taalafkortingen.
+    var lm = document.getElementById("langMenu"), lg = document.getElementById("logo");
+    function closeLangMenu() { lm.hidden = true; lg.setAttribute("aria-expanded", "false"); }
+    lg.onclick = function (e) {
+      e.stopPropagation();
+      if (!lm.hidden) { closeLangMenu(); return; }
+      lm.innerHTML = "";
+      ["nl", "en", "de", "fr"].forEach(function (code) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "langopt" + (code === lang ? " on" : "");
+        b.textContent = code.toUpperCase();
+        b.onclick = function (ev) {
+          ev.stopPropagation();
+          closeLangMenu();
+          var sel = document.getElementById("langSel");
+          sel.value = code;
+          sel.dispatchEvent(new Event("change"));
+        };
+        lm.appendChild(b);
+      });
+      lm.hidden = false; lg.setAttribute("aria-expanded", "true");
+    };
+    document.addEventListener("click", closeLangMenu);
     document.getElementById("resetUnd").onclick = function () {
       store.set("begrepen", []); render();
     };
