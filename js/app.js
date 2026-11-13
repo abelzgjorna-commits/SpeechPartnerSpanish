@@ -905,7 +905,10 @@
       }
     };
     rec.onerror = function (ev) { errored = true; S.note = errorText(ev && ev.error); };
+    var ended = false;
     rec.onend = function () {
+      if (ended) return;
+      ended = true;
       S.listening = false; S.rec = null;
       if (heard.length) {
         heard.forEach(function (t) { S.convo.push(makeTurn(t)); });
@@ -923,7 +926,18 @@
       go("gesprek");
     }
   }
-  function stopMic() { if (S.rec) { try { S.rec.stop(); } catch (e) {} } }
+  // Stoppen: als het spraak-einde-event uitblijft (gebeurt op iPhone), rond de opname zelf af.
+  function stopMic() {
+    var rec = S.rec;
+    if (!rec) return;
+    try { rec.stop(); } catch (e) {}
+    setTimeout(function () {
+      if (S.rec === rec) {
+        try { rec.abort(); } catch (e) {}
+        if (rec.onend) rec.onend();
+      }
+    }, 1500);
+  }
 
   function viewGesprek() {
     var w = el("div");
