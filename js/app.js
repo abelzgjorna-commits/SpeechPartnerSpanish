@@ -1320,11 +1320,15 @@
     b.classList.toggle("rec", S.listening);
     b.title = label;
     b.setAttribute("aria-label", label);
+    var out = document.getElementById("transOut");
     if (S.listening) {
-      var box = document.getElementById("transOut");
-      box.hidden = false;
-      box.innerHTML = "";
-      box.appendChild(el("div", "bad", "● " + T("Luistert…")));
+      out.hidden = false;
+      out.innerHTML = "";
+      var lm = el("div", "bad listen-msg", "● " + T("Luistert…"));
+      out.appendChild(lm);
+    } else if (out.querySelector && out.querySelector(".listen-msg")) {
+      out.innerHTML = "";
+      out.hidden = true;
     }
   }
 
