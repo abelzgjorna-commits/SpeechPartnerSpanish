@@ -140,3 +140,8 @@ body.speels h1::before { content: none; }
 @keyframes owl-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 @keyframes owl-blink { 0%,94%,100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
 @media (prefers-reduced-motion: reduce) { #owl svg, #owl .eye-blink { animation: none; } }
+
+/* ---------- Info-pagina: overzicht per tabblad ---------- */
+body.speels .guide-list { margin: 8px 0 0; padding-left: 20px; }
+body.speels .guide-list li { margin: 4px 0; line-height: 1.45; }
+body.speels .guide-list li::marker { color: var(--p); font-weight: 900; }

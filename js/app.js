@@ -29,8 +29,11 @@
   var rate = parseFloat(store.get("rate", 0.9)) || 0.9;
 
   // ---------- Toestand ----------
+  // Eerste keer openen: start op Info (uitleg). Daarna altijd op de hoofdpagina (Zinnen).
+  var firstVisit = !store.get("bezocht", false);
+  store.set("bezocht", true);
   var S = {
-    tab: "zinnen", cat: "Gesprek openen", stuck: 0, build: null,
+    tab: firstVisit ? "info" : "zinnen", cat: "Gesprek openen", stuck: 0, build: null,
     rKind: "vraag", rOpen: null, rSub: null, rAns: {},
     lMode: "kaarten", lIdx: 0, lShow: false, quiz: null, score: [0, 0],
     convo: [], note: "", listening: false, rec: null
@@ -1162,7 +1165,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "42";
+  var APP_VERSION = "44";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
@@ -1544,13 +1547,100 @@
            "Wortliste: Wiktionary, CC BY-SA 4.0, über kaikki.org. Spracherkennung: Whisper (OpenAI, MIT-Lizenz) über Hugging Face und Transformers.js (Apache 2.0). Die App selbst ist kostenlos; es wird nichts verkauft.",
            "Liste de mots : Wiktionary, CC BY-SA 4.0, via kaikki.org. Reconnaissance vocale : Whisper (OpenAI, licence MIT) via Hugging Face et Transformers.js (Apache 2.0). L'application est gratuite ; rien n'est vendu.") }
   ];
+  // ---------- Overzicht van de tabbladen, instellingen en extra's (Info-pagina) ----------
+  var TAB_GUIDE = [
+    { n: m("Zinnen", "Sentences", "Sätze", "Phrases"),
+      w: m("Kant-en-klare zinnen per situatie, zoals begroeten, eten, werk en vakantie, met vertaling en uitleg.",
+           "Ready-made sentences per situation, such as greeting, eating, work and holidays, with translation and explanation.",
+           "Fertige Sätze pro Situation, zum Beispiel Begrüßen, Essen, Arbeit und Urlaub, mit Übersetzung und Erklärung.",
+           "Phrases toutes prêtes par situation, comme saluer, manger, le travail et les vacances, avec traduction et explication."),
+      k: [m("Kies bovenaan een groep.", "Choose a group at the top.", "Wähle oben eine Gruppe.", "Choisis un groupe en haut."),
+          m("Tik op het luidsprekertje om een zin te horen.", "Tap the speaker icon to hear a sentence.", "Tippe auf das Lautsprechersymbol, um einen Satz zu hören.", "Touche le haut-parleur pour entendre une phrase."),
+          m("Bij sommige zinnen kun je met 'Bouw verder' zelf een zin maken.", "For some sentences, 'Build further' lets you make your own sentence.", "Bei manchen Sätzen kannst du mit 'Weiterbauen' deinen eigenen Satz machen.", "Pour certaines phrases, « Continuer » te permet de faire ta propre phrase."),
+          m("Zinnen die je begrijpt verdwijnen. Zet ze terug via Instellingen.", "Sentences you understand disappear. Bring them back via Settings.", "Verstandene Sätze verschwinden. Hol sie über die Einstellungen zurück.", "Les phrases que tu comprends disparaissent. Remets-les via les réglages.")] },
+    { n: m("Onderwerpen", "Topics", "Themen", "Sujets"),
+      w: m("Vragen per onderwerp om een gesprek te beginnen of gaande te houden.",
+           "Questions per topic to start or keep a conversation going.",
+           "Fragen pro Thema, um ein Gespräch zu beginnen oder am Laufen zu halten.",
+           "Questions par sujet pour lancer ou entretenir une conversation."),
+      k: [m("Lees de vraag hardop en luister naar het voorbeeld.", "Read the question aloud and listen to the example.", "Lies die Frage laut vor und höre das Beispiel an.", "Lis la question à voix haute et écoute l'exemple."),
+          m("Gebruik ze als het gesprek stilvalt.", "Use them when the conversation stalls.", "Nutze sie, wenn das Gespräch stockt.", "Utilise-les quand la conversation s'arrête.")] },
+    { n: m("Vastlopen", "Stuck", "Hängen", "Bloqué"),
+      w: m("Wat je zegt als je even niets weet.", "What to say when you don't know what to say.", "Was du sagst, wenn dir nichts einfällt.", "Que dire quand tu ne sais plus quoi dire."),
+      k: [m("Een grote zin met luisterknop.", "A large sentence with a listen button.", "Ein großer Satz mit Hörknopf.", "Une grande phrase avec bouton d'écoute."),
+          m("'Andere zin' laat een nieuwe zin zien.", "'Another sentence' shows a new one.", "'Anderer Satz' zeigt einen neuen.", "« Autre phrase » en affiche une nouvelle."),
+          m("Onderaan staat de volledige lijst.", "The full list is at the bottom.", "Unten steht die vollständige Liste.", "La liste complète est en bas.")] },
+    { n: m("Zin bouwen", "Build a sentence", "Satz bauen", "Construire une phrase"),
+      w: m("Maak zelf zinnen met een patroon uit woorden die je al kent.", "Make your own sentences with a pattern from words you already know.", "Baue eigene Sätze mit einem Muster aus Wörtern, die du schon kennst.", "Fais tes propres phrases avec un modèle à partir de mots que tu connais déjà."),
+      k: [m("Kies een patroon en vul het in.", "Choose a pattern and fill it in.", "Wähle ein Muster und fülle es aus.", "Choisis un modèle et complète-le."),
+          m("Lees je zin hardop voor.", "Read your sentence aloud.", "Lies deinen Satz laut vor.", "Lis ta phrase à voix haute.")] },
+    { n: m("Reageren", "React", "Reagieren", "Réagir"),
+      w: m("Antwoorden op wat je gesprekspartner vraagt, of op wat een vriend vertelt.", "Answers to what your partner asks, or to what a friend tells you.", "Antworten auf das, was dein Gesprächspartner fragt, oder auf das, was ein Freund erzählt.", "Réponses à ce que ton interlocuteur demande, ou à ce qu'un ami raconte."),
+      k: [m("'Ik vraag': antwoorden op vragen van je partner.", "'I ask': answers to questions from your partner.", "'Ich frage': Antworten auf Fragen deines Partners.", "« Je demande » : réponses aux questions de ton interlocuteur."),
+          m("'Vriend vertelt': reageer op een verhaal.", "'Friend tells': respond to a story.", "'Freund erzählt': reagiere auf eine Geschichte.", "« Un ami raconte » : réagis à une histoire."),
+          m("Begrepen reacties verdwijnen uit de lijst.", "Understood responses disappear from the list.", "Verstandene Reaktionen verschwinden aus der Liste.", "Les réponses comprises disparaissent de la liste.")] },
+    { n: m("Leren", "Learn", "Lernen", "Apprendre"),
+      w: m("Oefenen met kaarten, een quiz en grammatica.", "Practise with flashcards, a quiz and grammar.", "Üben mit Karteikarten, einem Quiz und Grammatik.", "S'entraîner avec des cartes, un quiz et la grammaire."),
+      k: [m("Kaarten: markeer wat je al kent als 'gekend'.", "Flashcards: mark what you already know as 'known'.", "Karten: markiere, was du schon kennst, als 'gekannt'.", "Cartes : marque ce que tu connais déjà comme « connu »."),
+          m("Quiz: kies de juiste vertaling uit drie opties.", "Quiz: choose the right translation from three options.", "Quiz: wähle die richtige Übersetzung aus drei Optionen.", "Quiz : choisis la bonne traduction parmi trois options."),
+          m("Grammatica: korte regels met voorbeelden en het waarom.", "Grammar: short rules with examples and the reason.", "Grammatik: kurze Regeln mit Beispielen und dem Warum.", "Grammaire : courtes règles avec exemples et explication.")] },
+    { n: m("Regels", "Rules", "Regeln", "Règles"),
+      w: m("Grammatica in het kort, met voorbeelden en een korte test.", "Grammar in brief, with examples and a short test.", "Grammatik kurz gefasst, mit Beispielen und einem kurzen Test.", "La grammaire en bref, avec exemples et un court test."),
+      k: [m("Tik op het luidsprekertje om een voorbeeld te horen.", "Tap the speaker icon to hear an example.", "Tippe auf das Lautsprechersymbol, um ein Beispiel zu hören.", "Touche le haut-parleur pour entendre un exemple."),
+          m("Doe de test om te zien wat je onthoudt.", "Take the test to see what you remember.", "Mach den Test, um zu sehen, was du behältst.", "Fais le test pour voir ce que tu retiens.")] },
+    { n: m("Gesprek", "Conversation", "Gespräch", "Conversation"),
+      w: m("Je gesprekspartner spreekt in of typt, de app vertaalt en geeft antwoorden.", "Your partner speaks or types, the app translates and suggests answers.", "Dein Gesprächspartner spricht oder tippt, die App übersetzt und schlägt Antworten vor.", "Ton interlocuteur parle ou écrit, l'application traduit et propose des réponses."),
+      k: [m("Tik op Opnemen en spreek Spaans, of typ de zin in het veld.", "Tap Record and speak Spanish, or type the sentence in the field.", "Tippe auf Aufnehmen und sprich Spanisch, oder tippe den Satz ins Feld.", "Touche Enregistrer et parle espagnol, ou écris la phrase dans le champ."),
+          m("Elke zin krijgt een vertaling, met uitleg per woord.", "Every sentence gets a translation, with an explanation per word.", "Jeder Satz bekommt eine Übersetzung, mit Erklärung pro Wort.", "Chaque phrase reçoit une traduction, avec une explication par mot."),
+          m("Rechts staan mogelijke antwoorden in bellen.", "Possible answers are shown on the right in bubbles.", "Rechts stehen mögliche Antworten in Sprechblasen.", "À droite, les réponses possibles dans des bulles."),
+          m("Verbeter een vertaling of voeg een eigen antwoord toe.", "Correct a translation or add your own answer.", "Verbessere eine Übersetzung oder füge eine eigene Antwort hinzu.", "Corrige une traduction ou ajoute ta propre réponse."),
+          m("Wis gesprek begint opnieuw.", "Clear conversation starts over.", "'Gespräch leeren' fängt neu an.", "« Effacer » recommence la conversation."),
+          m("Op de iPhone wordt spraak herkend met een model dat je eenmalig downloadt, met jouw toestemming.", "On iPhone, speech is recognised with a model you download once, with your permission.", "Auf dem iPhone wird Sprache mit einem Modell erkannt, das du einmal mit deiner Zustimmung lädst.", "Sur iPhone, la parole est reconnue par un modèle que tu télécharges une fois, avec ton accord.")] },
+    { n: m("Uitspraak", "Pronunciation", "Aussprache", "Prononciation"),
+      w: m("Oefen je uitspraak met opnemen en vergelijken, met minimale paren en shadowing.", "Practise your pronunciation by recording and comparing, with minimal pairs and shadowing.", "Übe deine Aussprache mit Aufnehmen und Vergleichen, mit Minimalpaaren und Shadowing.", "Entraîne ta prononciation en enregistrant et en comparant, avec paires minimales et shadowing."),
+      k: [m("Luister, herhaal en neem jezelf op.", "Listen, repeat and record yourself.", "Hör zu, wiederhole und nimm dich auf.", "Écoute, répète et enregistre-toi."),
+          m("Vergelijk jezelf met het voorbeeld en beoordeel jezelf.", "Compare yourself with the example and assess yourself.", "Vergleiche dich mit dem Beispiel und bewerte dich selbst.", "Compare-toi à l'exemple et évalue-toi."),
+          m("Het tempo stel je in bij Instellingen.", "Set the speed in Settings.", "Das Tempo stellst du in den Einstellungen ein.", "Règle la vitesse dans les réglages.")] },
+    { n: m("Info", "Info", "Info", "Info"),
+      w: m("Deze pagina: uitleg over de app en de tabbladen.", "This page: an explanation of the app and the tabs.", "Diese Seite: Erklärung der App und der Reiter.", "Cette page : explication de l'application et des onglets."),
+      k: [] }
+  ];
+  var EXTRA_GUIDE = { n: m("Instellingen en extra's", "Settings and extras", "Einstellungen und Extras", "Réglages et extras"),
+    k: [m("Vertaalbalk bovenaan: typ Nederlands en tik op Vertaal.", "Translation bar at the top: type Dutch and tap Translate.", "Übersetzungsleiste oben: Niederländisch tippen und auf Übersetzen tippen.", "Barre de traduction en haut : écris en néerlandais et touche Traduire."),
+        m("Taal: via het logo of het tandwiel (Nederlands, Engels, Duits, Frans).", "Language: via the logo or the gear icon (Dutch, English, German, French).", "Sprache: über das Logo oder das Zahnrad (Niederländisch, Englisch, Deutsch, Französisch).", "Langue : via le logo ou la roue crantée (néerlandais, anglais, allemand, français)."),
+        m("Thema: Standaard, Café, IJs, Jungle of Ruimte.", "Theme: Standard, Café, Ice, Jungle or Outer space.", "Design: Standard, Café, Eis, Dschungel oder Weltraum.", "Thème : Standard, Café, Glace, Jungle ou Espace."),
+        m("Gesprekspartner: automatisch, neutraal (o/a), man (hij) of vrouw (zij). Automatisch leidt het alleen af uit een zin die de partner over zichzelf zegt.", "Conversation partner: automatic, neutral (o/a), man (he) or woman (she). Automatic only uses a sentence in which the partner describes themselves.", "Gesprächspartner: automatisch, neutral (o/a), Mann (er) oder Frau (sie). Automatisch leitet nur aus einem Satz ab, in dem der Partner sich selbst beschreibt.", "Partenaire : automatique, neutre (o/a), homme (il) ou femme (elle). Automatique ne se base que sur une phrase où le partenaire se décrit lui-même."),
+        m("Snelheid van voorlezen: stel het tempo in.", "Reading speed: set the tempo.", "Vorlesegeschwindigkeit: stelle das Tempo ein.", "Vitesse de lecture : règle le rythme."),
+        m("Begrepen items resetten en Voortgang resetten wissen je voortgang.", "Reset understood items and Reset progress clear your progress.", "Verstandene Elemente zurücksetzen und Fortschritt zurücksetzen löschen deinen Fortschritt.", "Réinitialiser les éléments compris et Réinitialiser la progression effacent ta progression."),
+        m("De onderste balk verdwijnt na een paar seconden. Veeg omhoog vanaf de onderkant om hem terug te halen.", "The bottom bar disappears after a few seconds. Swipe up from the bottom to bring it back.", "Die untere Leiste verschwindet nach ein paar Sekunden. Wische vom unteren Rand nach oben, um sie zurückzuholen.", "La barre du bas disparaît après quelques secondes. Glisse vers le haut depuis le bas pour la faire revenir."),
+        m("De uil in de koptekst reageert op het gesprek. Tik erop voor een sprong.", "The owl in the header reacts to the conversation. Tap it for a hop.", "Die Eule im Kopfbereich reagiert auf das Gespräch. Tippe darauf für einen Hüpfer.", "La chouette dans l'en-tête réagit à la conversation. Touche-la pour un petit saut.")] };
   function viewInfo() {
     var w = el("div");
     var head = el("div", "card big");
     head.appendChild(el("div", "big-es", "Speech Partner.Spanish"));
     head.appendChild(el("div", "nl", T("Versie") + " " + APP_VERSION + " · " + T("Gemaakt door Abel, met Claude")));
     w.appendChild(head);
-    INFO_SECTIONS.forEach(function (sec) {
+    // Overzicht per tabblad: wat het is en wat je ermee kunt
+    w.appendChild(el("h2", "", T("Tabbladen")));
+    TAB_GUIDE.forEach(function (tb) {
+      var c = el("div", "card");
+      c.appendChild(el("div", "sec-title", L(tb.n)));
+      c.appendChild(el("div", "", L(tb.w)));
+      if (tb.k.length) {
+        var ul = el("ul", "guide-list");
+        tb.k.forEach(function (k) { ul.appendChild(el("li", "", L(k))); });
+        c.appendChild(ul);
+      }
+      w.appendChild(c);
+    });
+    var ex = el("div", "card");
+    ex.appendChild(el("div", "sec-title", L(EXTRA_GUIDE.n)));
+    var exl = el("ul", "guide-list");
+    EXTRA_GUIDE.k.forEach(function (k) { exl.appendChild(el("li", "", L(k))); });
+    ex.appendChild(exl);
+    w.appendChild(ex);
+    // De algemene secties (oude tabbladen-alinea is vervangen door het overzicht hierboven)
+    INFO_SECTIONS.filter(function (sec) { return sec.t.nl.indexOf("Zo gebruik je de tabbladen") !== 0; }).forEach(function (sec) {
       var c = el("div", "card");
       c.appendChild(el("div", "sec-title", L(sec.t)));
       c.appendChild(el("div", "", L(sec.b)));
