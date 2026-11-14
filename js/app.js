@@ -951,8 +951,22 @@
     if (hit) return { text: L(hit.m), whole: true, es: hit.es, about: true };
     var rev = REVS[lang], lw = learned("geleerdWoord")[lang] || {};
     var out = [], parts = [], missing = [];
-    t.split(" ").forEach(function (w) {
+    // Eerst meerwoordige uitdrukkingen (bijv. "fin de semana") als één geheel
+    var PHE = (typeof PHRASES_ES !== "undefined" && PHRASES_ES[lang]) || {};
+    var tw = t.split(" "), tokens = [];
+    for (var ti = 0; ti < tw.length; ti++) {
+      var hitP = null;
+      for (var sz = 3; sz >= 2 && !hitP; sz--) {
+        var cand = tw.slice(ti, ti + sz).join(" ");
+        if (ti + sz <= tw.length && PHE[cand] !== undefined) hitP = { n: sz, w: cand, v: PHE[cand] };
+      }
+      if (hitP) { tokens.push({ w: hitP.w, v: hitP.v }); ti += hitP.n - 1; }
+      else tokens.push({ w: tw[ti], v: undefined });
+    }
+    tokens.forEach(function (tok) {
+      var w = tok.w;
       if (!w) return;
+      if (tok.v !== undefined) { out.push(tok.v); parts.push(w + " = " + tok.v); return; }
       var v = lw[norm(w)] !== undefined ? lw[norm(w)] : rev[w];
       if (v === undefined) v = revNorm(rev)[norm(w)]; // ook zonder accenten getypt (rapido = rápido)
       var inf = null;
@@ -1004,7 +1018,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "36";
+  var APP_VERSION = "37";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();

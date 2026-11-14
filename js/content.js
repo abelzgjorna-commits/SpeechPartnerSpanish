@@ -488,5 +488,7 @@ var TALK = [
   { re: "^te gusta", gen: true, es: "¿Te gusta …?", m: m("Vind je … leuk?", "Do you like …?", "Gefällt dir …?", "Est-ce que tu aimes … ?"),
     a: [p("Sí, me gusta mucho.", "Ja, dat vind ik erg leuk.", "Yes, I like it a lot.", "Ja, das gefällt mir sehr.", "Oui, j'aime beaucoup."), p("Me encanta.", "Ik vind het geweldig.", "I love it.", "Ich liebe es.", "J'adore."), p("No mucho, la verdad.", "Niet zo, eerlijk gezegd.", "Not much, to be honest.", "Ehrlich gesagt nicht so sehr.", "Pas trop, à vrai dire.")] },
   { re: "^quieres ", gen: true, es: "¿Quieres …?", m: m("Wil je …?", "Do you want …?", "Möchtest du …?", "Tu veux … ?"),
-    a: [p("Sí, por favor.", "Ja, graag.", "Yes, please.", "Ja, bitte.", "Oui, s'il te plaît."), p("No, gracias.", "Nee, dank je.", "No, thank you.", "Nein, danke.", "Non, merci.")] }
+    a: [p("Sí, por favor.", "Ja, graag.", "Yes, please.", "Ja, bitte.", "Oui, s'il te plaît."), p("No, gracias.", "Nee, dank je.", "No, thank you.", "Nein, danke.", "Non, merci.")] },
+  { re: "(como|que tal) (estuvo|fue|estuviste|fuiste|estuvieron|fueron) (tu |el |su |vuestro )?(fin de semana|finde)", es: "¿Cómo estuvo tu fin de semana?", m: m("Hoe was je weekend?", "How was your weekend?", "Wie war dein Wochenende?", "Comment s'est passé ton week-end ?"),
+    a: [p("Muy bien, gracias. ¿Y el tuyo?", "Heel goed, dank je. En het jouwe?", "Very good, thanks. And yours?", "Sehr gut, danke. Und deins?", "Très bien, merci. Et le tien ?"), p("Fue tranquilo. Descansé mucho.", "Het was rustig. Ik heb veel gerust.", "It was quiet. I rested a lot.", "Es war ruhig. Ich habe viel ausgeruht.", "C'était calme. Je me suis beaucoup reposé.")] }
 ];

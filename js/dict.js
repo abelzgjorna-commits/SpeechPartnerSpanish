@@ -94,3 +94,19 @@ var DICTS = {}, PHRASES_BY_LANG = {}, REVS = {};
     L.forEach(function (l, i) { if (typeof REVS !== "undefined" && REVS[l]) REVS[l][w] = C[w][i]; });
   });
 })();
+
+// Grondwoordenlijst (basis.js) aanvullen. Enkelvoudige woorden komen in de omgekeerde lijst,
+// meerwoordige Spaanse uitdrukkingen (fin de semana) in een eigen lijst voor de zinsvertaling.
+var PHRASES_ES = {};
+(function () {
+  ["nl", "en", "de", "fr"].forEach(function (l) {
+    PHRASES_ES[l] = Object.create(null);
+    String((typeof BASIS !== "undefined" && BASIS[l]) || "").split("|").forEach(function (pair) {
+      var i = pair.indexOf("=");
+      if (i < 1) return;
+      var es = pair.slice(0, i), tr = pair.slice(i + 1);
+      if (es.indexOf(" ") >= 0) PHRASES_ES[l][es] = tr;
+      else if (REVS[l][es] === undefined) REVS[l][es] = tr;
+    });
+  });
+})();
