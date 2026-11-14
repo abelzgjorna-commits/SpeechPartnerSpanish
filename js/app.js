@@ -1004,7 +1004,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "31";
+  var APP_VERSION = "32";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
@@ -1147,74 +1147,142 @@
     WH.starting = true;
     var AC = window.AudioContext || window.webkitAudioContext;
     var ac = null;
-    try { ac = new AC(); if (ac.state === "suspended") ac.resume(); } catch (e) { ac = null; whLog("AudioContext FOUT: " + e.message); }
+    try { ac = new AC(); ac.resume(); } catch (e) { ac = null; whLog("AudioContext FOUT: " + e.message); }
     whLog("opname gevraagd; audio: " + (ac ? ac.state + " " + ac.sampleRate + " Hz" : "geen"));
     navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }).then(function (stream) {
       WH.starting = false;
-      if (!ac) throw new Error("AudioContext");
-      WH.stream = stream; WH.ac = ac; WH.pcm = []; WH.rate = ac.sampleRate;
+      WH.stream = stream; WH.pcm = [];
       var trk = stream.getAudioTracks()[0];
-      whLog("microfoon ok: " + (trk ? trk.label + " (" + trk.readyState + ")" : "geen spoor") + "; audio " + ac.state + " " + ac.sampleRate + " Hz");
+      whLog("microfoon ok: " + (trk ? trk.label + " (" + trk.readyState + ")" : "geen spoor"));
       if (trk) { trk.onended = function () { whLog("microfoonspoor BEEINDIGD door het systeem"); }; trk.onmute = function () { whLog("microfoon gedempt door het systeem"); }; }
-      ac.onstatechange = function () { whLog("audio-status: " + ac.state); };
-      var src = ac.createMediaStreamSource(stream);
-      var proc = ac.createScriptProcessor(4096, 1, 1);
-      var mute = ac.createGain(); mute.gain.value = 0;
-      proc.onaudioprocess = function (e) { WH.pcm.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
-      src.connect(proc); proc.connect(mute); mute.connect(ac.destination);
-      WH.src = src; WH.proc = proc;
-      if (ac.state === "suspended") ac.resume();
+
+      // Route 1: ruwe samples via de audio-motor. Op iPhone kan die motor stilvallen zodra de
+      // microfoon start; daarom opnieuw starten, en zo nodig een nieuwe motor maken.
+      function wire(ctx) {
+        WH.ac = ctx; WH.rate = ctx.sampleRate;
+        var src = ctx.createMediaStreamSource(stream);
+        var proc = ctx.createScriptProcessor(4096, 1, 1);
+        var mute = ctx.createGain(); mute.gain.value = 0;
+        proc.onaudioprocess = function (e) { WH.pcm.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+        src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+        WH.src = src; WH.proc = proc;
+        ctx.onstatechange = function () { whLog("audio-status: " + ctx.state); };
+        try { ctx.resume(); } catch (e) {}
+        whLog("audio-motor gekoppeld: " + ctx.state + " " + ctx.sampleRate + " Hz");
+      }
+      try { if (!ac) ac = new AC(); wire(ac); } catch (e) { whLog("audio-motor FOUT: " + e.message); }
+      WH.watch = setTimeout(function () {
+        if (!S.wrec || WH.pcm.length) return;
+        whLog("geen samples na 0,8 s (status " + (WH.ac ? WH.ac.state : "-") + "); nieuwe audio-motor");
+        try { WH.proc.onaudioprocess = null; WH.src.disconnect(); WH.proc.disconnect(); WH.ac.close().catch(function () {}); } catch (e) {}
+        try { wire(new AC()); } catch (e) { whLog("nieuwe audio-motor FOUT: " + e.message); }
+      }, 800);
+
+      // Route 2 (reserve): gewone opname als bestand, voor als route 1 niets oplevert.
+      WH.rec = null; WH.chunks = [];
+      if (window.MediaRecorder) {
+        try {
+          var rec = new MediaRecorder(stream);
+          rec.ondataavailable = function (e) { if (e.data && e.data.size) WH.chunks.push(e.data); };
+          rec.start();
+          WH.rec = rec;
+          whLog("reserve-opname gestart (" + (rec.mimeType || "?") + ")");
+        } catch (e) { whLog("reserve-opname FOUT: " + e.message); }
+      }
       S.listening = true; S.wrec = true; S.note = "";
       updateMic(); render();
     }).catch(function (e) {
       WH.starting = false;
       whLog("microfoon FOUT: " + (e && (e.name + " " + e.message)));
       if (ac) { try { ac.close().catch(function () {}); } catch (x) {} }
-      S.note = (e && e.message === "AudioContext") ? whErr(e) : T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
+      S.note = T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
       go("gesprek");
     });
   }
 
-  function whStop() {
-    try { WH.proc.onaudioprocess = null; WH.src.disconnect(); WH.proc.disconnect(); } catch (e) {}
-    if (WH.stream) { WH.stream.getTracks().forEach(function (t) { t.stop(); }); WH.stream = null; }
-    var rate = WH.rate || 48000;
-    if (WH.ac) { try { WH.ac.close().catch(function () {}); } catch (e) {} WH.ac = null; }
-    S.listening = false; S.wrec = false;
-    var chunks = WH.pcm || []; WH.pcm = [];
-    var len = 0, i, k;
-    for (i = 0; i < chunks.length; i++) len += chunks[i].length;
-    var ratio = rate / 16000, n = Math.floor(len / ratio);
-    var secs = Math.round(len / rate * 10) / 10;
-    whLog("opname gestopt: " + chunks.length + " blokken, " + secs + " s, " + rate + " Hz");
-    if (n < 16000 * 0.3) {
-      S.note = T("Geen spraak gehoord. Probeer het opnieuw.") + " (" + T("opname") + " " + secs + " s)";
-      updateMic(); go("gesprek"); return;
-    }
-    var flat = new Float32Array(len), o = 0;
-    for (i = 0; i < chunks.length; i++) { flat.set(chunks[i], o); o += chunks[i].length; }
-    var out = new Float32Array(n), peak = 0;
+  // Samples naar 16 kHz brengen
+  function whTo16k(flat, rate) {
+    var ratio = rate / 16000, len = flat.length, n = Math.floor(len / ratio), out = new Float32Array(n), i;
     for (i = 0; i < n; i++) {
       var pos = i * ratio, i0 = Math.floor(pos), i1 = Math.min(i0 + 1, len - 1), f = pos - i0;
-      var v = flat[i0] * (1 - f) + flat[i1] * f;
-      out[i] = v; if (v > peak) peak = v; else if (-v > peak) peak = -v;
+      out[i] = flat[i0] * (1 - f) + flat[i1] * f;
     }
-    // Zachte opnames (partner op afstand) versterken tot een normaal niveau.
-    if (peak > 0.002) { var g = Math.min(0.9 / peak, 40); for (k = 0; k < n; k++) out[k] *= g; }
-    whLog("volume " + Math.round(peak * 100) + "%; naar model");
-    var info = " (" + T("opname") + " " + secs + " s, " + T("volume") + " " + Math.round(peak * 100) + "%";
+    return out;
+  }
+
+  function whStop() {
+    clearTimeout(WH.watch);
+    try { WH.proc.onaudioprocess = null; WH.src.disconnect(); WH.proc.disconnect(); } catch (e) {}
+    var rate = WH.rate || 48000;
+    var chunks = WH.pcm || []; WH.pcm = [];
+    var len = 0, i;
+    for (i = 0; i < chunks.length; i++) len += chunks[i].length;
+    whLog("opname gestopt: route 1 gaf " + chunks.length + " blokken, " + (Math.round(len / rate * 10) / 10) + " s, " + rate + " Hz");
+    S.listening = false; S.wrec = false;
     S.note = T("Bezig met verwerken…");
     updateMic(); go("gesprek");
-    whRun(out).then(function (res) {
-      var text = String(res || "").trim();
-      whLog("model antwoord: \"" + text.slice(0, 60) + "\"");
-      S.note = "";
-      // Whisper zet stilte of ruis soms om in (música) of [Music]: dat telt niet als zin.
-      var junk = /^[\(\[\{].*[\)\]\}]$/.test(text) || /^[\W_]+$/.test(text);
-      if (text.length >= 2 && !junk) S.convo.push(makeTurn(text));
-      else S.note = T("Geen spraak gehoord. Probeer het opnieuw.") + info + (text ? ", " + T("gehoord") + ": " + text.slice(0, 40) : "") + ")";
-      go("gesprek");
+
+    function release() {
+      if (WH.stream) { WH.stream.getTracks().forEach(function (t) { t.stop(); }); WH.stream = null; }
+      if (WH.ac) { try { WH.ac.close().catch(function () {}); } catch (e) {} WH.ac = null; }
+    }
+    // Reserve-opname afsluiten en als samples teruggeven (of null)
+    function backup() {
+      var rec = WH.rec; WH.rec = null;
+      if (!rec || rec.state === "inactive") return Promise.resolve(null);
+      return new Promise(function (resolve) {
+        var done = false;
+        function fin() {
+          if (done) return; done = true;
+          var blob = new Blob(WH.chunks, { type: rec.mimeType || "audio/mp4" });
+          WH.chunks = [];
+          whLog("reserve-opname: " + blob.size + " bytes");
+          if (!blob.size) { resolve(null); return; }
+          whDecode(blob).then(resolve, function (e) { whLog("reserve decoderen FOUT: " + (e && e.message)); resolve(null); });
+        }
+        rec.onstop = fin;
+        try { rec.stop(); } catch (e) { fin(); }
+        setTimeout(fin, 2500);
+      });
+    }
+
+    var p;
+    if (len >= rate * 0.3) {
+      var flat = new Float32Array(len), o = 0;
+      for (i = 0; i < chunks.length; i++) { flat.set(chunks[i], o); o += chunks[i].length; }
+      var peak1 = 0;
+      for (i = 0; i < len; i += 7) { var a = flat[i] < 0 ? -flat[i] : flat[i]; if (a > peak1) peak1 = a; }
+      if (peak1 > 0.002) { if (WH.rec) { try { WH.rec.stop(); } catch (e) {} WH.rec = null; } p = Promise.resolve(whTo16k(flat, rate)); }
+      else { whLog("route 1 is stil (volume 0%); reserve gebruiken"); p = backup(); }
+    } else {
+      p = backup();
+    }
+    p.then(function (out) {
+      release();
+      if (!out || out.length < 16000 * 0.3) {
+        whLog("geen bruikbaar geluid uit beide routes");
+        S.note = T("Geen spraak gehoord. Probeer het opnieuw.") + " (" + T("opname") + " 0 s)";
+        go("gesprek"); return null;
+      }
+      var n = out.length, peak = 0, k;
+      for (k = 0; k < n; k++) { var v = out[k] < 0 ? -out[k] : out[k]; if (v > peak) peak = v; }
+      // Zachte opnames (partner op afstand) versterken tot een normaal niveau.
+      if (peak > 0.002) { var g = Math.min(0.9 / peak, 40); for (k = 0; k < n; k++) out[k] *= g; }
+      var secs = Math.round(n / 1600) / 10;
+      whLog(secs + " s, volume " + Math.round(peak * 100) + "%; naar model");
+      var info = " (" + T("opname") + " " + secs + " s, " + T("volume") + " " + Math.round(peak * 100) + "%";
+      return whRun(out).then(function (res) {
+        var text = String(res || "").trim();
+        whLog("model antwoord: \"" + text.slice(0, 60) + "\"");
+        S.note = "";
+        // Whisper zet stilte of ruis soms om in (música) of [Music]: dat telt niet als zin.
+        var junk = /^[\(\[\{].*[\)\]\}]$/.test(text) || /^[\W_]+$/.test(text);
+        if (text.length >= 2 && !junk) S.convo.push(makeTurn(text));
+        else S.note = T("Geen spraak gehoord. Probeer het opnieuw.") + info + (text ? ", " + T("gehoord") + ": " + text.slice(0, 40) : "") + ")";
+        go("gesprek");
+      });
     }).catch(function (e) {
+      release();
       whLog("verwerken FOUT: " + (e && e.message));
       S.note = whErr(e);
       go("gesprek");
