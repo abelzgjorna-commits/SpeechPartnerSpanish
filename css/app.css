@@ -201,3 +201,6 @@ button.logo { position: relative; }
   border: 2px solid var(--card);
 }
 h1 { font-size: 17px; }
+
+.teach-input { flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; font-size: 16px; background: var(--bg); }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }

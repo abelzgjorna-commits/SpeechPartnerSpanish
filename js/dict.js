@@ -52,3 +52,45 @@ var DICTS = {}, PHRASES_BY_LANG = {}, REVS = {};
     if (REVS[l][es] === undefined && es.indexOf(" ") < 0) REVS[l][es] = src;
   });
 });
+
+// Veelgebruikte Spaanse woorden en werkwoordsvormen met een vaste, juiste betekenis
+// (gaat voor op de automatisch omgekeerde lijst, die hier soms naast zit).
+(function () {
+  var C = {
+    "donde": ["waar", "where", "wo", "où"], "dónde": ["waar", "where", "wo", "où"],
+    "como": ["hoe / zoals", "how / like", "wie", "comment / comme"], "cómo": ["hoe", "how", "wie", "comment"],
+    "que": ["dat / wat", "that / what", "dass / was", "que"], "qué": ["wat", "what", "was", "quoi"],
+    "cuando": ["wanneer", "when", "wann / wenn", "quand"], "cuándo": ["wanneer", "when", "wann", "quand"],
+    "quien": ["wie", "who", "wer", "qui"], "quién": ["wie", "who", "wer", "qui"],
+    "por": ["door / voor", "for / by", "für / durch", "par / pour"], "para": ["voor", "for", "für", "pour"],
+    "te": ["je", "you", "dich / dir", "te"], "me": ["me", "me", "mich / mir", "me"], "se": ["zich", "oneself", "sich", "se"],
+    "tu": ["jouw", "your", "dein", "ton"], "tú": ["jij", "you", "du", "tu"], "mi": ["mijn", "my", "mein", "mon"],
+    "es": ["is", "is", "ist", "est"], "son": ["zijn", "are", "sind", "sont"], "soy": ["ik ben", "I am", "ich bin", "je suis"], "eres": ["jij bent", "you are", "du bist", "tu es"],
+    "está": ["is", "is", "ist", "est"], "esta": ["deze / is", "this / is", "diese / ist", "cette / est"], "estás": ["jij bent", "you are", "du bist", "tu es"], "estas": ["jij bent / deze", "you are / these", "du bist / diese", "tu es / ces"], "estoy": ["ik ben", "I am", "ich bin", "je suis"], "están": ["zijn", "are", "sind", "sont"],
+    "hay": ["er is", "there is", "es gibt", "il y a"],
+    "gusta": ["bevalt", "pleases", "gefällt", "plaît"], "gustan": ["bevallen", "please", "gefallen", "plaisent"],
+    "tengo": ["ik heb", "I have", "ich habe", "j'ai"], "tienes": ["jij hebt", "you have", "du hast", "tu as"], "tiene": ["heeft", "has", "hat", "a"],
+    "quiero": ["ik wil", "I want", "ich will", "je veux"], "quieres": ["jij wilt", "you want", "du willst", "tu veux"], "quiere": ["wil", "wants", "will", "veut"],
+    "puedo": ["ik kan", "I can", "ich kann", "je peux"], "puedes": ["jij kunt", "you can", "du kannst", "tu peux"], "puede": ["kan", "can", "kann", "peut"],
+    "voy": ["ik ga", "I go", "ich gehe", "je vais"], "vas": ["jij gaat", "you go", "du gehst", "tu vas"], "va": ["gaat", "goes", "geht", "va"], "vamos": ["wij gaan", "we go", "wir gehen", "nous allons"],
+    "hablo": ["ik spreek", "I speak", "ich spreche", "je parle"], "hablas": ["jij spreekt", "you speak", "du sprichst", "tu parles"],
+    "como_": null,
+    "come": ["eet", "eats", "isst", "mange"], "comes": ["jij eet", "you eat", "du isst", "tu manges"],
+    "vives": ["jij woont", "you live", "du wohnst", "tu habites"], "vivo": ["ik woon", "I live", "ich wohne", "j'habite"],
+    "llamas": ["jij heet", "you are called", "du heißt", "tu t'appelles"], "llamo": ["ik heet", "I am called", "ich heiße", "je m'appelle"], "llama": ["heet", "is called", "heißt", "s'appelle"],
+    "sé": ["ik weet", "I know", "ich weiß", "je sais"], "sabes": ["jij weet", "you know", "du weißt", "tu sais"],
+    "muchas": ["veel", "many", "viele", "beaucoup de"], "mucho": ["veel", "much", "viel", "beaucoup"], "muy": ["heel", "very", "sehr", "très"],
+    "algo": ["iets", "something", "etwas", "quelque chose"], "nada": ["niets", "nothing", "nichts", "rien"],
+    "sí": ["ja", "yes", "ja", "oui"], "no": ["nee / niet", "no / not", "nein / nicht", "non / ne pas"],
+    "y": ["en", "and", "und", "et"], "o": ["of", "or", "oder", "ou"], "pero": ["maar", "but", "aber", "mais"],
+    "el": ["de", "the", "der", "le"], "la": ["de", "the", "die", "la"], "los": ["de", "the", "die", "les"], "las": ["de", "the", "die", "les"],
+    "un": ["een", "a", "ein", "un"], "una": ["een", "a", "eine", "une"],
+    "con": ["met", "with", "mit", "avec"], "sin": ["zonder", "without", "ohne", "sans"], "en": ["in", "in", "in", "dans"], "de": ["van", "of", "von", "de"], "a": ["naar", "to", "nach / zu", "à"],
+    "aquí": ["hier", "here", "hier", "ici"], "hoy": ["vandaag", "today", "heute", "aujourd'hui"], "ayer": ["gisteren", "yesterday", "gestern", "hier"], "mañana": ["morgen", "tomorrow", "morgen", "demain"]
+  };
+  var L = ["nl", "en", "de", "fr"];
+  Object.keys(C).forEach(function (w) {
+    if (!C[w]) return;
+    L.forEach(function (l, i) { if (typeof REVS !== "undefined" && REVS[l]) REVS[l][w] = C[w][i]; });
+  });
+})();

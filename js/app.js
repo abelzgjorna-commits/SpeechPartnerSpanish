@@ -872,29 +872,118 @@
   }
 
   // ---------- Gesprek (microfoon en typvak) ----------
+  // ---- Zinnen herkennen en bijleren ----
+  // Vergelijken gebeurt zonder accenten en leestekens, zodat kleine verschillen niet uitmaken.
+  function norm(s) { return clean(s).normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+  function lev(a, b) {
+    var m = a.length, n = b.length, prev = [], cur = [], i, j;
+    for (j = 0; j <= n; j++) prev[j] = j;
+    for (i = 1; i <= m; i++) {
+      cur = [i];
+      for (j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+      prev = cur;
+    }
+    return prev[n];
+  }
+  function near(a, b) {
+    if (a === b) return true;
+    var L2 = Math.max(a.length, b.length);
+    if (L2 < 6 || Math.abs(a.length - b.length) > 3) return false;
+    return lev(a, b) / L2 <= 0.18;
+  }
+  var TALK_RE = [];
+  TALK.forEach(function (t, i) {
+    // ^ en $ in een patroon gelden voor de hele zin
+    var alts = [], depth = 0, cur = "";
+    t.re.split("").forEach(function (ch) {
+      if (ch === "(" || ch === "[") depth++;
+      if (ch === ")" || ch === "]") depth--;
+      if (ch === "|" && depth === 0) { alts.push(cur); cur = ""; } else cur += ch;
+    });
+    alts.push(cur);
+    var anchored = alts.map(function (alt) {
+      var st = alt.charAt(0) === "^", en = alt.charAt(alt.length - 1) === "$";
+      var core = alt.replace(/^\^/, "").replace(/\$$/, "");
+      return (st ? "^" : "(?:^| )") + "(?:" + core + ")" + (en ? "$" : "");
+    }).join("|");
+    try { TALK_RE[i] = new RegExp(anchored); } catch (e) { TALK_RE[i] = /$^/; }
+  });
+  function findTalk(n) {
+    for (var i = 0; i < TALK.length; i++) { if (TALK_RE[i].test(n)) return TALK[i]; }
+    return null;
+  }
+  function findReact(n) {
+    var hit = null;
+    var n2 = n.replace(/^(hola|oye|bueno|pues) /, "");
+    REACT.forEach(function (r) { var k = norm(r.es); if (!hit && (k === n || k === n2)) hit = r; });
+    if (!hit) REACT.forEach(function (r) { var k = norm(r.es); if (!hit && (near(k, n) || near(k, n2))) hit = r; });
+    return hit;
+  }
+  // Wat de gebruiker de app zelf heeft geleerd (blijft op het toestel staan)
+  function learned(kind) { var o = store.get(kind, {}); return (o && typeof o === "object") ? o : {}; }
+  function learnSentence(es, meaning) { var o = learned("geleerdZin"); var k = norm(es); o[k] = o[k] || {}; o[k][lang] = meaning; store.set("geleerdZin", o); }
+  function learnWord(w, meaning) { var o = learned("geleerdWoord"); o[lang] = o[lang] || {}; o[lang][norm(w)] = meaning; store.set("geleerdWoord", o); }
+  function learnReply(es, reply) { var o = learned("geleerdAntwoord"); var k = norm(es); o[k] = o[k] || []; if (o[k].indexOf(reply) < 0) o[k].push(reply); store.set("geleerdAntwoord", o); }
+
+  var REV_NORM = {};
+  var VERB_ENDS = ["ieron", "iendo", "aron", "amos", "emos", "imos", "aste", "iste", "ando", "aba", "ado", "ido", "ais", "eis", "an", "as", "en", "es", "io", "a", "e", "o", "i"];
+  function revNorm(rev) {
+    if (!REV_NORM[lang]) {
+      var o = nullProto({}), k;
+      for (k in rev) { var nk = norm(k); if (o[nk] === undefined) o[nk] = rev[k]; }
+      REV_NORM[lang] = o;
+    }
+    return REV_NORM[lang];
+  }
   function esToLang(text) {
-    var t = clean(text);
+    var t = clean(text), n = norm(text);
+    var ls = learned("geleerdZin")[n];
+    if (ls && ls[lang]) return { text: ls[lang], whole: true, learned: true };
     var hit = null;
     allItems().forEach(function (it) { if (!hit && clean(it.es) === t) hit = it; });
+    if (!hit) allItems().forEach(function (it) { if (!hit && norm(it.es) === n) hit = it; });
     if (hit) return { text: L(hit.m), whole: true, es: hit.es };
-    var rev = REVS[lang];
+    var r = findReact(n);
+    if (r) return { text: L(r.m), whole: true, es: r.es };
+    var tk = findTalk(n);
+    if (tk && !tk.gen) return { text: L(tk.m), whole: true, es: tk.es, about: norm(tk.es) !== n };
+    allItems().forEach(function (it) { if (!hit && near(norm(it.es), n)) hit = it; });
+    if (hit) return { text: L(hit.m), whole: true, es: hit.es, about: true };
+    var rev = REVS[lang], lw = learned("geleerdWoord")[lang] || {};
     var out = [], parts = [], missing = [];
     t.split(" ").forEach(function (w) {
       if (!w) return;
-      if (rev[w] !== undefined) { out.push(rev[w]); parts.push(w + " = " + rev[w]); }
+      var v = lw[norm(w)] !== undefined ? lw[norm(w)] : rev[w];
+      if (v === undefined) v = revNorm(rev)[norm(w)]; // ook zonder accenten getypt (rapido = rápido)
+      var inf = null;
+      if (v === undefined) { // vervoegde vorm: zoek het hele werkwoord op (trabaja -> trabajar)
+        var rn = revNorm(rev), nw = norm(w);
+        VERB_ENDS.some(function (e) {
+          if (nw.length - e.length < 2 || nw.slice(-e.length) !== e) return false;
+          return ["ar", "er", "ir"].some(function (x) {
+            var c = nw.slice(0, nw.length - e.length) + x;
+            if (rn[c] !== undefined) { v = rn[c]; inf = c; return true; }
+            return false;
+          });
+        });
+      }
+      if (inf) { out.push(v); parts.push(w + " = " + v + " (" + inf + ")"); }
+      else if (v !== undefined) { out.push(v); parts.push(w + " = " + v); }
       else { out.push("?"); parts.push(w + " = ?"); missing.push(w); }
     });
     return { text: out.join(" "), parts: parts, missing: missing };
   }
 
   function makeTurn(text) {
-    var t = clean(text);
-    var react = null;
-    REACT.forEach(function (r) { if (!react && clean(r.es) === t) react = r; });
-    var replies = react
-      ? react.styles.map(function (s) { return { label: LBL[s[0]], es: s[1], m: s[2] }; })
-      : shuffle(PHRASES["Tijd winnen"]).slice(0, 2).map(function (x) { return { label: UI["Tijd winnen"], es: x.es, m: x.m }; });
-    var fu = shuffle(PHRASES["Doorvragen"]).slice(0, 3).map(function (x) { return { label: UI["Vraag door"], es: x.es, m: x.m }; });
+    var n = norm(text);
+    var ANS = UI["Antwoord"];
+    var replies = [];
+    (learned("geleerdAntwoord")[n] || []).forEach(function (r) { replies.push({ label: UI["Mijn antwoord"], es: r, m: null }); });
+    var react = findReact(n), tk = react ? null : findTalk(n);
+    if (react) react.styles.forEach(function (s) { replies.push({ label: LBL[s[0]], es: s[1], m: s[2] }); });
+    else if (tk) tk.a.forEach(function (x) { replies.push({ label: ANS, es: x.es, m: x.m }); });
+    else shuffle(PHRASES["Tijd winnen"]).slice(0, 2).forEach(function (x) { replies.push({ label: UI["Tijd winnen"], es: x.es, m: x.m }); });
+    var fu = (react || tk) ? [] : shuffle(PHRASES["Doorvragen"]).slice(0, 3).map(function (x) { return { label: UI["Vraag door"], es: x.es, m: x.m }; });
     return { es: text.trim(), tr: esToLang(text), options: replies.concat(fu) };
   }
 
@@ -1207,7 +1296,35 @@
       w.appendChild(el("div", "note", T("Nog geen gesprek. Tik op de microfoon en zeg bijvoorbeeld ¿Qué tal?")));
       return w;
     }
-    S.convo.slice().reverse().forEach(function (t) {
+    function refresh(t) { var nt = makeTurn(t.es); t.tr = nt.tr; t.options = nt.options; S.teach = null; render(); }
+    function teachForm(card, ph, onSave, ctx) {
+      // Eerst uitleg: alleen aanleren wat je zeker weet, met twee manieren om het na te gaan.
+      var info = el("div", "card panel");
+      info.appendChild(el("div", "sec-title", T("Eerst controleren, dan aanleren")));
+      info.appendChild(el("div", "", ctx.kind === "antwoord"
+        ? T("Voeg alleen een antwoord toe waarvan je zeker weet dat het goed Spaans is. De app toont het daarna zonder controle.")
+        : T("Leer de app alleen iets aan als je de betekenis zeker weet. De app toont jouw vertaling daarna als juist. Weet je het niet zeker? Vraag het na of controleer het online, of sla niets op.")));
+      var hr = el("div", "chips");
+      if (ctx.kind !== "antwoord") {
+        var q = "¿Qué significa " + ctx.text + "?";
+        hr.appendChild(btn("🔊 " + T("Vraag het na") + ": " + q, "small", function () { speak(q); }));
+      }
+      var a = document.createElement("a");
+      a.className = "btn small"; a.target = "_blank"; a.rel = "noopener";
+      a.textContent = T("Controleer online");
+      a.href = "https://translate.google.com/?sl=es&tl=" + lang + "&text=" + encodeURIComponent(ctx.text) + "&op=translate";
+      hr.appendChild(a);
+      info.appendChild(hr);
+      card.appendChild(info);
+      var f = el("div", "row");
+      var inp = document.createElement("input");
+      inp.type = "text"; inp.className = "teach-input"; inp.placeholder = ph;
+      f.appendChild(inp);
+      f.appendChild(btn(T("Opslaan"), "primary small", function () { var v = inp.value.trim(); if (v) onSave(v); }));
+      f.appendChild(btn(T("Annuleer"), "small", function () { S.teach = null; render(); }));
+      card.appendChild(f);
+    }
+    S.convo.slice().reverse().forEach(function (t, ti) {
       var card = el("div", "card");
       card.appendChild(el("div", "nl", T("Gesprekspartner zei")));
       var line = el("div", "line-row");
@@ -1218,15 +1335,32 @@
       card.appendChild(line);
       card.appendChild(el("div", "nl", T("Vertaling")));
       card.appendChild(el("div", "", t.tr.text));
+      if (t.tr.about && t.tr.es) card.appendChild(el("div", "nl", T("Herkend als:") + " " + t.tr.es));
+      if (t.tr.learned) card.appendChild(el("div", "nl", T("Door jou aangeleerd")));
       if (t.tr.parts) card.appendChild(el("div", "nl", t.tr.parts.join(" · ")));
-      if (t.tr.missing && t.tr.missing.length) card.appendChild(el("div", "bad", T("Niet in de lijst:") + " " + t.tr.missing.join(", ")));
+      var teach = (S.teach && S.teach.i === ti) ? S.teach : null;
+      if (t.tr.missing && t.tr.missing.length) {
+        card.appendChild(el("div", "bad", T("Niet in de lijst. Tik op een woord om het de app te leren:")));
+        var mr = el("div", "chips");
+        t.tr.missing.forEach(function (wd) {
+          mr.appendChild(btn(wd + " = ?", teach && teach.word === wd ? "primary small" : "small", function () { S.teach = { i: ti, kind: "word", word: wd }; render(); }));
+        });
+        card.appendChild(mr);
+      }
+      var tr2 = el("div", "chips");
+      tr2.appendChild(btn(T("Verbeter vertaling"), "small", function () { S.teach = { i: ti, kind: "zin" }; render(); }));
+      tr2.appendChild(btn(T("Eigen antwoord toevoegen"), "small", function () { S.teach = { i: ti, kind: "antwoord" }; render(); }));
+      card.appendChild(tr2);
+      if (teach && teach.kind === "word") teachForm(card, teach.word + " = …", function (v) { learnWord(teach.word, v); refresh(t); }, { kind: "word", text: teach.word });
+      if (teach && teach.kind === "zin") teachForm(card, T("Wat betekent deze zin?"), function (v) { learnSentence(t.es, v); refresh(t); }, { kind: "zin", text: t.es.replace(/[¿?¡!.]+/g, "").trim() });
+      if (teach && teach.kind === "antwoord") teachForm(card, T("Jouw antwoord in het Spaans"), function (v) { learnReply(t.es, v); refresh(t); }, { kind: "antwoord", text: t.es });
       card.appendChild(el("div", "sec-title", T("Mogelijke vervolg")));
       t.options.forEach(function (o) {
         var l = el("div", "line-row");
         var x = el("div", "txt");
         x.appendChild(el("div", "nl", L(o.label)));
         x.appendChild(el("div", "es", o.es));
-        x.appendChild(el("div", "nl", L(o.m)));
+        if (o.m) x.appendChild(el("div", "nl", L(o.m)));
         l.appendChild(x);
         l.appendChild(speakBtn(o.es));
         card.appendChild(l);
