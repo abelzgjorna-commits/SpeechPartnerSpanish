@@ -1003,8 +1003,39 @@
     return { text: out.join(" "), parts: parts, missing: missing };
   }
 
+  // ---------- Geslacht van de gesprekspartner ----------
+  // Instelling: "auto" (uit de zin van de partner, anders neutraal), "neutraal", "hij" of "zij".
+  // We raden nooit uit de stem: alleen als de partner zelf een bijvoeglijk naamwoord met -o of -a gebruikt.
+  var GEN_ADJ = ["cansad", "preocupad", "nervios", "emocionad", "preparad", "content", "list", "ocupad", "sorprendid", "enfadad", "perdid"];
+  function partnerGenderSetting() { return store.get("partnerGender", "auto"); }
+  function partnerGenderEffective() {
+    var s0 = partnerGenderSetting();
+    if (s0 === "hij" || s0 === "zij") return s0;
+    if (s0 === "neutraal") return "neutraal";
+    return store.get("partnerGenderAuto", null) || "neutraal";
+  }
+  // Uit een mededeling van de partner over zichzelf (estoy/soy/me siento + bijvoeglijk naamwoord)
+  function detectPartnerGender(text) {
+    if (/[¿?]/.test(text)) return null; // vragen gaan over de gebruiker, niet over de partner
+    var m0 = text.toLowerCase().match(new RegExp("\\b(estoy|soy|me siento|estuve|estaba)\\s+(?:un poco |muy |bastante |algo |tan |)?(" + GEN_ADJ.join("|") + ")(o|a)\\b"));
+    if (!m0) return null;
+    return m0[3] === "a" ? "zij" : "hij";
+  }
+  // Maakt de Spaanse vorm passend bij het geslacht van de partner (hij: -o, zij: -a, neutraal: o/a)
+  function genderEs(es) {
+    if (!es) return es;
+    var g = partnerGenderEffective();
+    return es.replace(new RegExp("\\b(" + GEN_ADJ.join("|") + ")(o|a)(\\/a)?\\b", "g"), function (all, stem) {
+      if (g === "hij") return stem + "o";
+      if (g === "zij") return stem + "a";
+      return stem + "o/a";
+    });
+  }
+
   function makeTurn(text) {
     var n = norm(text);
+    var genDetected = detectPartnerGender(text);
+    if (genDetected) store.set("partnerGenderAuto", genDetected);
     var ANS = UI["Antwoord"];
     var replies = [];
     (learned("geleerdAntwoord")[n] || []).forEach(function (r) { replies.push({ label: UI["Mijn antwoord"], es: r, m: null }); });
@@ -1027,7 +1058,11 @@
         ].forEach(function (x) { fu.push({ label: UI["Vraag door"], es: x.es, m: x.m }); });
       }
     }
-    return { es: text.trim(), tr: esToLang(text), options: replies.concat(fu) };
+    var opts = replies.concat(fu).map(function (o) {
+      // Eigen opgeslagen antwoorden blijven precies zoals de gebruiker ze schreef
+      return o.label === UI["Mijn antwoord"] ? o : { label: o.label, es: genderEs(o.es), m: o.m };
+    });
+    return { es: text.trim(), tr: esToLang(text), options: opts, gen: genDetected };
   }
 
   // Zoekt het onderwerp van een zin: het zelfstandig naamwoord na een lidwoord of bezittelijk voornaamwoord
@@ -1127,7 +1162,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "41";
+  var APP_VERSION = "42";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
@@ -1607,6 +1642,7 @@
       // De vertaling wordt bij het tonen opnieuw gemaakt, zodat ze altijd de gekozen taal volgt.
       var trr = esToLang(t.es) || t.tr;
       card.appendChild(el("div", "", trr.text));
+      if (t.gen) card.appendChild(el("div", "nl", T("Uit de zin afgeleid: vorm voor de gesprekspartner") + " (" + (t.gen === "zij" ? "zij" : "hij") + ")"));
       if (trr.about && trr.es) card.appendChild(el("div", "nl", T("Herkend als:") + " " + trr.es));
       if (trr.learned) card.appendChild(el("div", "nl", T("Door jou aangeleerd")));
       if (trr.parts) card.appendChild(el("div", "nl", trr.parts.join(" · ")));
@@ -2008,6 +2044,7 @@
     document.querySelectorAll("[data-ph]").forEach(function (n) { n.placeholder = T(n.getAttribute("data-ph")); });
     document.getElementById("langSel").value = lang;
     document.getElementById("themeSel").value = theme;
+    if (document.getElementById("genSel")) document.getElementById("genSel").value = partnerGenderSetting();
     document.body.classList.toggle("cafe", theme === "cafe");
     ["ijs", "jungle", "ruimte"].forEach(function (t) { document.body.classList.toggle("th-" + t, theme === t); });
     renderLogo();
@@ -2061,6 +2098,10 @@
       S.lShow = false;
       render();
       if (!document.getElementById("transOut").hidden) showTranslation();
+    });
+    if (document.getElementById("genSel")) document.getElementById("genSel").addEventListener("change", function (e) {
+      store.set("partnerGender", e.target.value);
+      render();
     });
     document.getElementById("themeSel").addEventListener("change", function (e) {
       theme = e.target.value;
