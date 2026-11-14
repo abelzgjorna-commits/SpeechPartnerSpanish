@@ -949,6 +949,21 @@
     if (tk && !tk.gen) return { text: L(tk.m), whole: true, es: tk.es, about: norm(tk.es) !== n };
     allItems().forEach(function (it) { if (!hit && near(norm(it.es), n)) hit = it; });
     if (hit) return { text: L(hit.m), whole: true, es: hit.es, about: true };
+    // Grammatica-motor (voorlopig alleen Nederlands): eerst de zin ontleden en opbouwen.
+    // Lukt dat niet, dan valt de app terug op woord-voor-woord.
+    if (lang === "nl" && typeof GRAM !== "undefined") {
+      var gw = function (s) {
+        var lwx = learned("geleerdWoord")[lang] || {};
+        if (lwx[norm(s)] !== undefined) return lwx[norm(s)];
+        var PHX = (typeof PHRASES_ES !== "undefined" && PHRASES_ES[lang]) || {};
+        if (PHX[s] !== undefined) return PHX[s];
+        if (s.indexOf(" ") >= 0) return undefined;
+        var rvx = REVS[lang];
+        return rvx[s] !== undefined ? rvx[s] : revNorm(rvx)[norm(s)];
+      };
+      var gr = GRAM.translate(text, gw);
+      if (gr) return { text: gr.text, parts: gr.parts, missing: [], grammar: true };
+    }
     var rev = REVS[lang], lw = learned("geleerdWoord")[lang] || {};
     var out = [], parts = [], missing = [];
     // Eerst meerwoordige uitdrukkingen (bijv. "fin de semana") als één geheel
@@ -1018,7 +1033,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "37";
+  var APP_VERSION = "38";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
