@@ -1004,7 +1004,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "33";
+  var APP_VERSION = "34";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
@@ -1902,6 +1902,17 @@
       p.setAttribute("aria-hidden", open ? "false" : "true");
     }
     document.getElementById("setBtn").onclick = toggleSettings;
+    // Tik op de titel: terug naar het begin (Zinnen, met de hoofdcategorie open).
+    var ttl = document.querySelector("header.top h1");
+    if (ttl) {
+      ttl.style.cursor = "pointer";
+      ttl.onclick = function () {
+        S.build = null; S.teach = null; S.listening = false;
+        document.getElementById("settings").classList.remove("open");
+        go("zinnen");
+        window.scrollTo(0, 0);
+      };
+    }
     // Tik op het logo: klein lijstje met alleen de taalafkortingen.
     var lm = document.getElementById("langMenu"), lg = document.getElementById("logo");
     function closeLangMenu() { lm.hidden = true; lg.setAttribute("aria-expanded", "false"); }
