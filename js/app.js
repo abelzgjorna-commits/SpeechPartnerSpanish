@@ -1003,10 +1003,26 @@
   var WH = { rec: null, chunks: [], stream: null, worker: null, ready: false, pending: null, jobs: {}, jobId: 0 };
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
+  // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
+  var APP_VERSION = "31";
+  var WH_LOG = [];
+  function whLog(msg) {
+    var d = new Date();
+    WH_LOG.push(("0" + d.getMinutes()).slice(-2) + ":" + ("0" + d.getSeconds()).slice(-2) + " " + msg);
+    if (WH_LOG.length > 40) WH_LOG.shift();
+  }
+  function whReport() {
+    return "Speech Partner v" + APP_VERSION + "\n" + navigator.userAgent + "\n" +
+      "standalone: " + (!!navigator.standalone) + " | model: " + store.get("whModel", "-") + " | ready: " + WH.ready + "\n" +
+      (WH_LOG.length ? WH_LOG.join("\n") : "(nog geen stappen)");
+  }
+  window.addEventListener("error", function (e) { whLog("JS-fout: " + (e && e.message)); });
+  window.addEventListener("unhandledrejection", function (e) { whLog("Promise-fout: " + (e && e.reason && (e.reason.message || e.reason))); });
+
   function whSetStatus(text) {
     S.whStatus = text;
     var n = document.getElementById("whStatus");
-    if (n) n.textContent = text;
+    if (n) { n.textContent = text; n.style.display = text ? "" : "none"; }
   }
   // Het model draait in een aparte werker; laden gebeurt altijd VOOR het opnemen, nooit tijdens.
   function whLoad() {
@@ -1014,6 +1030,7 @@
     if (WH.pending) return WH.pending;
     var model = WH_MODELS[store.get("whModel", "tiny")] || WH_MODELS.tiny;
     S.whLoading = true;
+    whLog("model laden: " + model);
     whSetStatus(T("Spraakmodel laden…"));
     WH.pending = new Promise(function (resolve, reject) {
       var w;
@@ -1036,9 +1053,11 @@
       w.postMessage({ type: "load", model: model });
     }).then(function () {
       WH.ready = true; S.whLoading = false; whSetStatus("");
+      whLog("model klaar");
       return true;
     }, function (e) {
       WH.pending = null; WH.ready = false; S.whLoading = false; whSetStatus("");
+      whLog("model FOUT: " + (e && e.message));
       if (WH.worker) { try { WH.worker.terminate(); } catch (x) {} WH.worker = null; }
       throw e;
     });
@@ -1128,11 +1147,16 @@
     WH.starting = true;
     var AC = window.AudioContext || window.webkitAudioContext;
     var ac = null;
-    try { ac = new AC(); if (ac.state === "suspended") ac.resume(); } catch (e) { ac = null; }
+    try { ac = new AC(); if (ac.state === "suspended") ac.resume(); } catch (e) { ac = null; whLog("AudioContext FOUT: " + e.message); }
+    whLog("opname gevraagd; audio: " + (ac ? ac.state + " " + ac.sampleRate + " Hz" : "geen"));
     navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }).then(function (stream) {
       WH.starting = false;
       if (!ac) throw new Error("AudioContext");
       WH.stream = stream; WH.ac = ac; WH.pcm = []; WH.rate = ac.sampleRate;
+      var trk = stream.getAudioTracks()[0];
+      whLog("microfoon ok: " + (trk ? trk.label + " (" + trk.readyState + ")" : "geen spoor") + "; audio " + ac.state + " " + ac.sampleRate + " Hz");
+      if (trk) { trk.onended = function () { whLog("microfoonspoor BEEINDIGD door het systeem"); }; trk.onmute = function () { whLog("microfoon gedempt door het systeem"); }; }
+      ac.onstatechange = function () { whLog("audio-status: " + ac.state); };
       var src = ac.createMediaStreamSource(stream);
       var proc = ac.createScriptProcessor(4096, 1, 1);
       var mute = ac.createGain(); mute.gain.value = 0;
@@ -1144,6 +1168,7 @@
       updateMic(); render();
     }).catch(function (e) {
       WH.starting = false;
+      whLog("microfoon FOUT: " + (e && (e.name + " " + e.message)));
       if (ac) { try { ac.close().catch(function () {}); } catch (x) {} }
       S.note = (e && e.message === "AudioContext") ? whErr(e) : T("Microfoon is niet toegestaan op deze pagina. Typ hieronder wat je gesprekspartner zei.");
       go("gesprek");
@@ -1161,6 +1186,7 @@
     for (i = 0; i < chunks.length; i++) len += chunks[i].length;
     var ratio = rate / 16000, n = Math.floor(len / ratio);
     var secs = Math.round(len / rate * 10) / 10;
+    whLog("opname gestopt: " + chunks.length + " blokken, " + secs + " s, " + rate + " Hz");
     if (n < 16000 * 0.3) {
       S.note = T("Geen spraak gehoord. Probeer het opnieuw.") + " (" + T("opname") + " " + secs + " s)";
       updateMic(); go("gesprek"); return;
@@ -1175,11 +1201,13 @@
     }
     // Zachte opnames (partner op afstand) versterken tot een normaal niveau.
     if (peak > 0.002) { var g = Math.min(0.9 / peak, 40); for (k = 0; k < n; k++) out[k] *= g; }
+    whLog("volume " + Math.round(peak * 100) + "%; naar model");
     var info = " (" + T("opname") + " " + secs + " s, " + T("volume") + " " + Math.round(peak * 100) + "%";
     S.note = T("Bezig met verwerken…");
     updateMic(); go("gesprek");
     whRun(out).then(function (res) {
       var text = String(res || "").trim();
+      whLog("model antwoord: \"" + text.slice(0, 60) + "\"");
       S.note = "";
       // Whisper zet stilte of ruis soms om in (música) of [Music]: dat telt niet als zin.
       var junk = /^[\(\[\{].*[\)\]\}]$/.test(text) || /^[\W_]+$/.test(text);
@@ -1187,6 +1215,7 @@
       else S.note = T("Geen spraak gehoord. Probeer het opnieuw.") + info + (text ? ", " + T("gehoord") + ": " + text.slice(0, 40) : "") + ")";
       go("gesprek");
     }).catch(function (e) {
+      whLog("verwerken FOUT: " + (e && e.message));
       S.note = whErr(e);
       go("gesprek");
     });
@@ -1269,7 +1298,14 @@
       else if (store.get("whModel", null) && !WH.ready && !WH.pending) whLoadWithNote();
       var ws = el("div", "note", S.whStatus || "");
       ws.id = "whStatus";
+      if (!S.whStatus) ws.style.display = "none";
       w.appendChild(ws);
+      w.appendChild(btn(T("Diagnose spraak"), "small", function () { S.whDiag = !S.whDiag; render(); }));
+      if (S.whDiag) {
+        var pre = document.createElement("pre");
+        pre.className = "diag"; pre.textContent = whReport();
+        w.appendChild(pre);
+      }
       if (store.get("whModel", null) && !S.whAsk && !S.listening) {
         w.appendChild(btn(T("Spraakmodel wijzigen"), "small", function () { S.whAsk = true; render(); }));
       }
