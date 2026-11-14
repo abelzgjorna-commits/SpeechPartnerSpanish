@@ -12,7 +12,7 @@
   var TABS = [
     ["zinnen", "Zinnen"], ["onderwerpen", "Onderwerpen"], ["vastlopen", "Vastlopen"],
     ["bouwen", "Zin bouwen"], ["reageren", "Reageren"], ["leren", "Leren"],
-    ["regels", "Regels"], ["gesprek", "Gesprek"], ["uitspraak", "Uitspraak"]
+    ["regels", "Regels"], ["gesprek", "Gesprek"], ["uitspraak", "Uitspraak"], ["info", "Info"]
   ];
 
   // ---------- Opslag op het toestel ----------
@@ -1004,7 +1004,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "34";
+  var APP_VERSION = "36";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
@@ -1351,6 +1351,54 @@
     setTimeout(function () {
       if (S.rec === rec && rec.onend) rec.onend();
     }, 3000);
+  }
+
+  // ---------- Info: uitleg over de app, de maker en de bronnen ----------
+  var INFO_SECTIONS = [
+    { t: m("Wat is Speech Partner.Spanish?", "What is Speech Partner.Spanish?", "Was ist Speech Partner.Spanish?", "Qu'est-ce que Speech Partner.Spanish ?"),
+      b: m("Een gratis hulpmiddel om Spaans te spreken, ook als je de taal nog niet goed kent. Je vindt er kant-en-klare zinnen, uitleg over de grammatica en een gesprekstrainer. De app werkt op je telefoon, zonder account en zonder server.",
+           "A free tool to speak Spanish, even if you don't know the language well yet. It has ready-made sentences, grammar explanations and a conversation trainer. The app runs on your phone, without an account and without a server.",
+           "Ein kostenloses Hilfsmittel, um Spanisch zu sprechen, auch wenn du die Sprache noch nicht gut kennst. Es gibt fertige Sätze, Grammatikerklärungen und einen Gesprächstrainer. Die App läuft auf deinem Telefon, ohne Konto und ohne Server.",
+           "Un outil gratuit pour parler espagnol, même si tu ne le maîtrises pas encore. Il contient des phrases toutes prêtes, des explications de grammaire et un entraîneur de conversation. L'application fonctionne sur ton téléphone, sans compte et sans serveur.") },
+    { t: m("Zo gebruik je de tabbladen", "How to use the tabs", "So benutzt du die Reiter", "Comment utiliser les onglets"),
+      b: m("Zinnen: kant-en-klare zinnen per situatie, met de vertaling en een uitleg. Onderwerpen: zinnen per onderwerp. Vastlopen: wat je zegt als je even niets weet. Zin bouwen: maak zelf zinnen met een patroon. Reageren: antwoorden op wat je gesprekspartner zegt. Leren: korte lessen en oefeningen. Regels: grammatica in het kort, met een test. Gesprek: je gesprekspartner spreekt in, de app vertaalt en geeft antwoorden. Uitspraak: oefen je uitspraak met opnemen. Info: deze pagina.",
+           "Sentences: ready-made sentences per situation, with translation and explanation. Topics: sentences per topic. Stuck: what to say when you don't know what to say. Build a sentence: make your own sentences with a pattern. React: answers to what your conversation partner says. Learn: short lessons and exercises. Rules: grammar in brief, with a test. Conversation: your partner speaks, the app translates and suggests answers. Pronunciation: practise your pronunciation by recording. Info: this page.",
+           "Sätze: fertige Sätze pro Situation, mit Übersetzung und Erklärung. Themen: Sätze pro Thema. Hängen: was du sagst, wenn dir nichts einfällt. Satz bauen: eigene Sätze mit einem Muster. Reagieren: Antworten auf das, was dein Gesprächspartner sagt. Lernen: kurze Lektionen und Übungen. Regeln: Grammatik kurz gefasst, mit einem Test. Gespräch: dein Gesprächspartner spricht, die App übersetzt und schlägt Antworten vor. Aussprache: übe deine Aussprache mit Aufnehmen. Info: diese Seite.",
+           "Phrases : phrases toutes prêtes par situation, avec traduction et explication. Sujets : phrases par sujet. Bloqué : que dire quand tu ne sais plus quoi dire. Construire une phrase : tes propres phrases avec un modèle. Réagir : réponses à ce que dit ton interlocuteur. Apprendre : courtes leçons et exercices. Règles : grammaire en bref, avec un test. Conversation : ton interlocuteur parle, l'application traduit et propose des réponses. Prononciation : entraîne ta prononciation en enregistrant. Info : cette page.") },
+    { t: m("Spreken op de iPhone", "Speaking on iPhone", "Sprechen auf dem iPhone", "Parler sur iPhone"),
+      b: m("Op de iPhone herkent de app spraak met een spraakmodel dat op je telefoon draait. Het model wordt één keer gedownload (ongeveer 40 of 80 MB; bij voorkeur via wifi). Daarna werkt het ook zonder internet. Tik op de microfoon, spreek de Spaanse zin en tik op Stop. Werkt spraak niet goed, typ dan de zin in het typvak.",
+           "On iPhone the app recognises speech with a speech model that runs on your phone. The model is downloaded once (about 40 or 80 MB; preferably over Wi-Fi). After that it also works without internet. Tap the microphone, say the Spanish sentence and tap Stop. If speech doesn't work well, type the sentence in the text box.",
+           "Auf dem iPhone erkennt die App Sprache mit einem Sprachmodell, das auf deinem Telefon läuft. Das Modell wird einmal heruntergeladen (etwa 40 oder 80 MB; am besten über WLAN). Danach funktioniert es auch ohne Internet. Tippe auf das Mikrofon, sprich den spanischen Satz und tippe auf Stopp. Funktioniert Sprache nicht gut, tippe den Satz in das Eingabefeld.",
+           "Sur iPhone, l'application reconnaît la voix grâce à un modèle vocal qui tourne sur ton téléphone. Le modèle se télécharge une fois (environ 40 ou 80 Mo ; de préférence en Wi-Fi). Ensuite il fonctionne aussi hors ligne. Appuie sur le micro, dis la phrase espagnole puis appuie sur Stop. Si la voix ne marche pas bien, tape la phrase dans la zone de saisie.") },
+    { t: m("Aanleren", "Teaching the app", "Der App etwas beibringen", "Enseigner à l'application"),
+      b: m("Herkent de app een zin of woord niet? Dan kun je het zelf aanleren. Doe dat alleen als je de betekenis zeker weet; de app geeft je daarvoor een controleknop (vraag het na of controleer online). Wat je aanleert, blijft op je eigen toestel.",
+           "If the app doesn't recognise a sentence or word, you can teach it yourself. Only do this if you are sure of the meaning; the app gives you a check button for that (ask or check online). What you teach stays on your own device.",
+           "Erkennt die App einen Satz oder ein Wort nicht, kannst du es ihr selbst beibringen. Tu das nur, wenn du die Bedeutung sicher kennst; dafür gibt es eine Prüfknopf (nachfragen oder online prüfen). Was du beibringst, bleibt auf deinem eigenen Gerät.",
+           "Si l'application ne reconnaît pas une phrase ou un mot, tu peux le lui apprendre. Fais-le seulement si tu es sûr du sens ; un bouton de vérification t'aide (demander ou vérifier en ligne). Ce que tu enseignes reste sur ton propre appareil.") },
+    { t: m("Over de maker", "About the maker", "Über den Macher", "À propos de l'auteur"),
+      b: m("Speech Partner.Spanish is ontworpen en gemaakt door Abel, in samenwerking met Claude (Anthropic). Abel bedacht de opzet, de inhoud en de werkwijze; Claude heeft de code en de teksten uitgewerkt en getest.",
+           "Speech Partner.Spanish was designed and created by Abel, in collaboration with Claude (Anthropic). Abel devised the concept, content and approach; Claude developed and tested the code and texts.",
+           "Speech Partner.Spanish wurde von Abel entworfen und erstellt, in Zusammenarbeit mit Claude (Anthropic). Abel hat das Konzept, den Inhalt und die Herangehensweise entwickelt; Claude hat den Code und die Texte ausgearbeitet und getestet.",
+           "Speech Partner.Spanish a été conçu et créé par Abel, en collaboration avec Claude (Anthropic). Abel a imaginé le concept, le contenu et la démarche ; Claude a développé et testé le code et les textes.") },
+    { t: m("Bronnen en licenties", "Sources and licences", "Quellen und Lizenzen", "Sources et licences"),
+      b: m("Woordenlijst: Wiktionary, CC BY-SA 4.0, via kaikki.org. Spraakherkenning: Whisper (OpenAI, MIT-licentie) via Hugging Face en Transformers.js (Apache 2.0). De app zelf is gratis; er wordt niets verkocht.",
+           "Word list: Wiktionary, CC BY-SA 4.0, via kaikki.org. Speech recognition: Whisper (OpenAI, MIT licence) via Hugging Face and Transformers.js (Apache 2.0). The app itself is free; nothing is sold.",
+           "Wortliste: Wiktionary, CC BY-SA 4.0, über kaikki.org. Spracherkennung: Whisper (OpenAI, MIT-Lizenz) über Hugging Face und Transformers.js (Apache 2.0). Die App selbst ist kostenlos; es wird nichts verkauft.",
+           "Liste de mots : Wiktionary, CC BY-SA 4.0, via kaikki.org. Reconnaissance vocale : Whisper (OpenAI, licence MIT) via Hugging Face et Transformers.js (Apache 2.0). L'application est gratuite ; rien n'est vendu.") }
+  ];
+  function viewInfo() {
+    var w = el("div");
+    var head = el("div", "card big");
+    head.appendChild(el("div", "big-es", "Speech Partner.Spanish"));
+    head.appendChild(el("div", "nl", T("Versie") + " " + APP_VERSION + " · " + T("Gemaakt door Abel, met Claude")));
+    w.appendChild(head);
+    INFO_SECTIONS.forEach(function (sec) {
+      var c = el("div", "card");
+      c.appendChild(el("div", "sec-title", L(sec.t)));
+      c.appendChild(el("div", "", L(sec.b)));
+      w.appendChild(c);
+    });
+    return w;
   }
 
   function viewGesprek() {
@@ -1787,7 +1835,7 @@
   var VIEWS = {
     zinnen: viewZinnen, onderwerpen: viewOnderwerpen, vastlopen: viewVastlopen,
     bouwen: viewBouwen, reageren: viewReageren, leren: viewLeren,
-    regels: viewRegels, gesprek: viewGesprek, uitspraak: viewUitspraak
+    regels: viewRegels, gesprek: viewGesprek, uitspraak: viewUitspraak, info: viewInfo
   };
 
   // Vlaggen als SVG (overal gelijk; geen emoji nodig). Spaans is altijd rood-geel-rood.
