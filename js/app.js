@@ -1035,6 +1035,30 @@
     });
   }
 
+  // Reactie op een mededeling over een toestand, gevoel of drukte. De reactie gaat over precies dat
+  // wat er gezegd is, niet over een algemene "wat leuk" of een onderwerp dat in de zin ontbreekt.
+  var QWAT = { es: "¿Qué pasa?", m: { nl: "Wat is er aan de hand?", en: "What's going on?", de: "Was ist los?", fr: "Qu'est-ce qui se passe ?" } };
+  var STATE_REACT = [
+    { rx: /\b(cansad[oa]s?)\b/, a: { es: "Vaya, qué pena. Espero que descanses pronto.", m: { nl: "Wat jammer. Ik hoop dat je snel rust krijgt.", en: "Oh no, I hope you get some rest soon.", de: "Oh, das tut mir leid. Ich hoffe, du kannst dich bald ausruhen.", fr: "Oh, c'est dommage. J'espère que tu pourras bientôt te reposer." } }, q: QWAT },
+    { rx: /\b(preocupad[oa]s?)\b/, a: { es: "Lo siento. Espero que todo se arregle pronto.", m: { nl: "Wat vervelend. Ik hoop dat het snel goed komt.", en: "I'm sorry. I hope it gets sorted soon.", de: "Das tut mir leid. Ich hoffe, es wird bald alles gut.", fr: "Je suis désolé. J'espère que ça s'arrangera vite." } }, q: QWAT },
+    { rx: /\b(enferm[oa]s?)\b/, a: { es: "Lo siento mucho. Espero que te mejores pronto.", m: { nl: "Wat vervelend. Ik hoop dat je snel beter wordt.", en: "I'm sorry to hear that. I hope you feel better soon.", de: "Das tut mir leid. Ich hoffe, du wirst bald wieder gesund.", fr: "Je suis désolé. J'espère que tu vas vite aller mieux." } }, q: QWAT },
+    { rx: /\b(tristes?)\b/, a: { es: "Lo siento. Espero que las cosas mejoren.", m: { nl: "Wat jammer. Ik hoop dat het beter gaat.", en: "I'm sorry. I hope things get better.", de: "Das tut mir leid. Ich hoffe, es wird besser.", fr: "Je suis désolé. J'espère que ça ira mieux." } }, q: QWAT },
+    { rx: /\btengo (mucho|demasiado) (trabajo|que hacer)\b/, a: { es: "Uf, qué pesado. Espero que tengas tiempo para descansar.", m: { nl: "Wat zwaar. Ik hoop dat je tijd hebt om even uit te rusten.", en: "Oh, that's a lot. I hope you get time to rest.", de: "Oje, das ist viel. Ich hoffe, du hast Zeit zum Ausruhen.", fr: "Oh là là, c'est beaucoup. J'espère que tu auras le temps de te reposer." } }, q: { es: "¿Te gusta tu trabajo?", m: { nl: "Vind je je werk leuk?", en: "Do you like your work?", de: "Magst du deine Arbeit?", fr: "Tu aimes ton travail ?" } } },
+    { rx: /\b(estoy|estamos|estás|está|están) (muy |bastante )?bien\b/, a: { es: "¡Me alegro! Qué bueno.", m: { nl: "Fijn om te horen!", en: "Good to hear!", de: "Schön zu hören!", fr: "Tant mieux !" } }, q: { es: "¿Qué has hecho hoy?", m: { nl: "Wat heb je vandaag gedaan?", en: "What have you done today?", de: "Was hast du heute gemacht?", fr: "Qu'est-ce que tu as fait aujourd'hui ?" } } }
+  ];
+  function stateReplies(text) {
+    var t = text.toLowerCase();
+    if (/\bno (estoy|está|estás|estamos|están) bien\b/.test(t)) {
+      return { answer: { es: "Lo siento. ¿Qué pasa?", m: { nl: "Wat vervelend. Wat is er aan de hand?", en: "I'm sorry. What's going on?", de: "Das tut mir leid. Was ist los?", fr: "Je suis désolé. Qu'est-ce qui se passe ?" } }, questions: [{ es: "¿Quieres hablar de ello?", m: { nl: "Wil je erover praten?", en: "Do you want to talk about it?", de: "Willst du darüber reden?", fr: "Tu veux en parler ?" } }] };
+    }
+    if (/\b(no|ni)\b/.test(t)) return null; // ontkenningen: liever geen reactie dan een verkeerde
+    for (var i = 0; i < STATE_REACT.length; i++) {
+      var s = STATE_REACT[i];
+      if (s.rx.test(t)) return { answer: s.a, questions: [{ es: s.q.es, m: s.q.m }] };
+    }
+    return null;
+  }
+
   function makeTurn(text) {
     var n = norm(text);
     var genDetected = detectPartnerGender(text);
@@ -1049,7 +1073,8 @@
     if (!react && !tk) {
       // Geen vast patroon: antwoorden en vragen gaan over het onderwerp van de zin, nooit over iets anders.
       var tp = topicOf(text), isQ = /[¿?]/.test(text);
-      var tr = tp ? topicReplies(tp, isQ) : null;
+      var sr = isQ ? null : stateReplies(text);
+      var tr = sr || (tp ? topicReplies(tp, isQ) : null);
       if (tr) {
         replies.push({ label: ANS, es: tr.answer.es, m: tr.answer.m });
         fu = tr.questions.map(function (x) { return { label: UI["Vraag door"], es: x.es, m: x.m }; });
@@ -1111,8 +1136,9 @@
     var np = function (l, det, role) { return known ? GRAM.np(l, det, x, role, null) : null; };
     var capDE = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
     var nlN = topicGloss("nl", x), enBare = topicGloss("en", x), enN = "the " + enBare;
-    var nlNoun = (g === "n" ? "het " : "de ") + nlN;
-    var nlPron = { m: "hij", f: "zij", n: "het" }[g];
+    // Het Nederlandse geslacht staat niet in de tabel (het Duitse is daarvoor geen betrouwbare vervanging),
+    // dus de Nederlandse zinnen verwijzen met "dat" in plaats van met een lidwoord dat fout kan zijn.
+    var nlNoun = "dat";
     var pDE = { m: "er", f: "sie", n: "es" }[g], pFR = gfr === "f" ? "elle" : "il";
     var deAcc = np("de", dSpec, "acc"), frAcc = np("fr", dSpec, "acc");
     var deNom = np("de", "el", "nom");
@@ -1124,7 +1150,7 @@
             fr: "Super ! " + (frAcc ? "J'aime " + frAcc : "Je l'aime bien") + "." } },
         questions: [
           { es: "¿Cómo se llama " + art + " " + x + "?",
-            m: { nl: "Hoe heet " + nlPron + "?", en: "What is its name?",
+            m: { nl: "Hoe heet " + nlNoun + "?", en: "What is its name?",
               de: "Wie heißt " + (known ? pDE : "es") + "?", fr: "Comment s'appelle-t-" + (known ? pFR : "il") + " ?" } },
           { es: "¿Cómo es " + art + " " + x + "?",
             m: { nl: "Hoe is " + nlNoun + "?", en: "What is " + enN + " like?",
@@ -1165,7 +1191,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "45";
+  var APP_VERSION = "46";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
