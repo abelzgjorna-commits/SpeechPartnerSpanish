@@ -145,3 +145,5 @@ body.speels h1::before { content: none; }
 body.speels .guide-list { margin: 8px 0 0; padding-left: 20px; }
 body.speels .guide-list li { margin: 4px 0; line-height: 1.45; }
 body.speels .guide-list li::marker { color: var(--p); font-weight: 900; }
+body.speels .install-card { margin-top: 18px; }
+body.speels .install-card .btn { margin-top: 10px; }

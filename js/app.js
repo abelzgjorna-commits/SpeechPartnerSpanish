@@ -1165,7 +1165,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "44";
+  var APP_VERSION = "45";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
@@ -1646,6 +1646,10 @@
       c.appendChild(el("div", "", L(sec.b)));
       w.appendChild(c);
     });
+    // Plaats voor het installatiekaartje (vult speels.js), onderaan zodat het de uitleg niet onderbreekt
+    var slot = el("div");
+    slot.id = "installSlot";
+    w.appendChild(slot);
     return w;
   }
 

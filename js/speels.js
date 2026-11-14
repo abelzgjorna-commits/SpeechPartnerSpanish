@@ -33,6 +33,50 @@
     '</svg>';
   if (brand) brand.insertBefore(owl, brand.querySelector("h1"));
 
+  // ---------- Installeren: alleen op de Info-pagina, en alleen met toestemming van de gebruiker ----------
+  var deferredPrompt = null;
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferredPrompt = e; fillInstall(); });
+  window.addEventListener("appinstalled", function () { deferredPrompt = null; fillInstall(); });
+  var INSTALL_TXT = {
+    nl: { title: "Zet de app op je telefoon", android: "Installeer de app, dan staat hij als eigen app op je beginscherm.", button: "Installeer de app",
+          ios: ["Open deze pagina in Safari.", "Tik onderin op het deelicoon.", "Kies 'Zet op beginscherm'."] },
+    en: { title: "Put the app on your phone", android: "Install the app so it sits on your home screen like its own app.", button: "Install the app",
+          ios: ["Open this page in Safari.", "Tap the share icon at the bottom.", "Choose 'Add to Home Screen'."] },
+    de: { title: "App auf dein Telefon legen", android: "Installiere die App, damit sie wie eine eigene App auf dem Startbildschirm liegt.", button: "App installieren",
+          ios: ["Öffne diese Seite in Safari.", "Tippe unten auf das Teilen-Symbol.", "Wähle 'Zum Home-Bildschirm'."] },
+    fr: { title: "Installer l'application sur ton téléphone", android: "Installe l'application pour qu'elle apparaisse sur ton écran d'accueil comme une vraie application.", button: "Installer l'application",
+          ios: ["Ouvre cette page dans Safari.", "Touche l'icône de partage en bas.", "Choisis « Sur l'écran d'accueil »."] }
+  };
+  function isStandalone() { return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true; }
+  function isIOSDevice() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+  function fillInstall() {
+    var slot = document.getElementById("installSlot");
+    if (!slot || slot.childElementCount) return;
+    if (isStandalone()) return;
+    var t = INSTALL_TXT[document.body.getAttribute("data-lang") || "nl"] || INSTALL_TXT.nl;
+    var card = document.createElement("div");
+    card.className = "card install-card";
+    var h = document.createElement("div"); h.className = "sec-title"; h.textContent = t.title; card.appendChild(h);
+    if (deferredPrompt) {
+      var p = document.createElement("div"); p.textContent = t.android; card.appendChild(p);
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "btn primary"; b.textContent = t.button;
+      b.addEventListener("click", function () {
+        var ev = deferredPrompt; deferredPrompt = null;
+        ev.prompt();
+        ev.userChoice.then(function () { slot.innerHTML = ""; fillInstall(); });
+      });
+      card.appendChild(b);
+    } else if (isIOSDevice()) {
+      var ol = document.createElement("ol"); ol.className = "guide-list";
+      t.ios.forEach(function (s0) { var li = document.createElement("li"); li.textContent = s0; ol.appendChild(li); });
+      card.appendChild(ol);
+    } else {
+      return; // computer zonder installatieaanbod: niets tonen
+    }
+    slot.appendChild(card);
+  }
+
   var moodTimer = null;
   function setMood(m, ms) {
     owl.className = "mood-" + m;
@@ -53,6 +97,7 @@
     var badTxt = bad ? bad.textContent : "";
     if (badTxt && badTxt !== lastBad) setMood("oops", 2200);
     lastBad = badTxt;
+    fillInstall();
     if (document.querySelector(".btn.mic.rec, .btn.rec")) { if (owl.className !== "mood-think") setMood("think"); }
   });
   obs.observe(document.body, { childList: true, subtree: true });
