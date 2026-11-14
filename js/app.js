@@ -1004,7 +1004,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "32";
+  var APP_VERSION = "33";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
@@ -1948,9 +1948,25 @@
   else setup();
 
   // Offline werken via de service worker
+  // Automatisch bijwerken: zodra er een nieuwe versie is, wordt die actief en ververst de pagina zelf.
+  // Het vinkje in sessionStorage voorkomt een eindeloze herlaadlus.
   if ("serviceWorker" in navigator) {
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (!hadController) { hadController = true; return; }
+      try {
+        if (sessionStorage.getItem("sp-reloaded") === APP_VERSION) return;
+        sessionStorage.setItem("sp-reloaded", APP_VERSION);
+      } catch (e) {}
+      window.location.reload();
+    });
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("sw.js").catch(function () {});
+      navigator.serviceWorker.register("sw.js").then(function (reg) {
+        reg.update().catch(function () {});
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") reg.update().catch(function () {});
+        });
+      }).catch(function () {});
     });
   }
 })();
