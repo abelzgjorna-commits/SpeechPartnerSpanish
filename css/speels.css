@@ -1,0 +1,142 @@
+/* Speelse proefweergave (neo-brutalistisch) met de nationale kleuren van de gekozen taal.
+   Alleen uiterlijk. Alleen in de testkopie (body.speels). Het café-thema blijft ongewijzigd. */
+
+/* Nationale kleuren per taal
+   p = hoofdknop · s = accent (actieve tab, geluidsknop) · sInk = tekst op s
+   hi = tint voor de uitgelichte kaart · t2 = tint voor de afwisselende kaarten · paper = achtergrond
+   nl: rood-wit-blauw · en: blauw-rood-wit · de: zwart-rood-goud · fr: blauw-wit-rood */
+body.speels:not(.cafe)[data-lang="nl"] { --p:#AE1C28; --s:#21468B; --sInk:#ffffff; --hi:#fde3e6; --t2:#dfe8fb; --paper:#fff8f8; --bar:#000; --head:#AE1C28; }
+body.speels:not(.cafe)[data-lang="en"] { --p:#C8102E; --s:#012169; --sInk:#ffffff; --hi:#dfe6f7; --t2:#f9dde1; --paper:#f5f7fc; --bar:#000; --head:#012169; }
+body.speels:not(.cafe)[data-lang="de"] { --p:#DD0000; --s:#FFCE00; --sInk:#000000; --hi:#ffe9a8; --t2:#fff4cc; --paper:#fffbef; --bar:#000; --head:#000000; }
+body.speels:not(.cafe)[data-lang="fr"] { --p:#ED2939; --s:#002395; --sInk:#ffffff; --hi:#dfe5f7; --t2:#fbdde0; --paper:#f5f7fd; --bar:#000; --head:#002395; }
+
+body.speels:not(.cafe) {
+  --ink-k: #1c1410;
+  --hard: 4px 4px 0 var(--ink-k);
+  --font-pop: "Arial Black", "Helvetica Neue", "Arial", system-ui, sans-serif;
+  background-color: var(--paper);
+  background-image: radial-gradient(var(--dots, rgba(28,20,16,.16)) 1.2px, transparent 1.3px);
+  background-size: 18px 18px;
+  font-family: var(--font-pop); color: var(--ink-k); font-weight: 700;
+}
+body.speels:not(.cafe) h1 { font-family: var(--font-pop); font-weight: 900; font-size: 20px; color: var(--head-ink, #fff); letter-spacing: -.3px; }
+
+body.speels:not(.cafe) h2 { color: var(--head); font-weight: 900; }
+body.speels:not(.cafe) .es { font-size: 19px; font-weight: 900; }
+body.speels:not(.cafe) .card.big .es, body.speels:not(.cafe) .big-es { font-size: 26px; }
+body.speels:not(.cafe) .nl, body.speels:not(.cafe) .hint, body.speels:not(.cafe) .stat, body.speels:not(.cafe) .explain { color: var(--ink-soft, #5b4636); font-weight: 700; }
+body.speels:not(.cafe) .nl { font-size: 15px; }
+
+/* Koptekst in de landskleur met dikke onderrand */
+body.speels:not(.cafe) header.top { background: var(--head) !important; color: var(--head-ink, #fff); border-bottom: 4px solid var(--ink-k) !important; box-shadow: none !important; }
+body.speels:not(.cafe) header.top::after { height: 10px; bottom: -4px; }
+body.speels:not(.cafe) .iconbtn { background: var(--card); border: 3px solid var(--ink-k); border-radius: 12px; box-shadow: var(--hard); }
+body.speels:not(.cafe) .logo svg { filter: drop-shadow(3px 3px 0 var(--ink-k)); }
+body.speels:not(.cafe) .logolang { background: var(--s); color: var(--sInk); border: 3px solid var(--ink-k); }
+
+/* Kaarten: dikke rand, harde schaduw, afwisselend van kleur */
+body.speels:not(.cafe) .card {
+  background: var(--card); border: 3px solid var(--ink-k) !important; border-radius: 14px;
+  box-shadow: var(--hard); padding: 14px 16px; margin: 6px 4px 18px;
+  animation: pop-in .3s cubic-bezier(.2,1.5,.4,1) both;
+}
+body.speels:not(.cafe) .card:nth-of-type(3n+2) { background: var(--t2); }
+body.speels:not(.cafe) .card:nth-of-type(3n+3) { background: var(--card); }
+body.speels:not(.cafe) .card.panel { background: var(--hi); }
+body.speels:not(.cafe) .card.big { transform: rotate(-.6deg); }
+@keyframes pop-in { from { transform: translateY(12px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Knoppen: dikke rand, harde schaduw, indrukken bij tikken */
+body.speels:not(.cafe) .btn {
+  background: var(--card); color: var(--ink-k); border: 3px solid var(--ink-k); border-radius: 12px;
+  box-shadow: var(--hard); font-weight: 900;
+  transition: transform .06s ease, box-shadow .06s ease;
+}
+body.speels:not(.cafe) .btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink-k); }
+body.speels:not(.cafe) .btn.primary { background: var(--p); color: #fff; }
+body.speels:not(.cafe) .btn.active { background: var(--s); color: var(--sInk); }
+body.speels:not(.cafe) .speak { border: 3px solid var(--ink-k); border-radius: 12px; box-shadow: var(--hard); background: var(--s); color: var(--sInk); width: 46px; height: 46px; }
+body.speels:not(.cafe) .speak:active { transform: translate(3px, 3px); box-shadow: none; }
+body.speels:not(.cafe) .chips .btn { border-radius: 999px; }
+body.speels:not(.cafe) .btn.mic.rec { background: var(--p); color: #fff; }
+
+/* Invoervelden en meldingen */
+body.speels:not(.cafe) .transbar input, body.speels:not(.cafe) textarea.big-input, body.speels:not(.cafe) .teach-input {
+  background: var(--card); border: 3px solid var(--ink-k); border-radius: 12px; box-shadow: inset 3px 3px 0 rgba(28,20,16,.12);
+  color: var(--ink-k); font-weight: 700;
+}
+body.speels:not(.cafe) .transout, body.speels:not(.cafe) .settings.open, body.speels:not(.cafe) .langmenu { border: 3px solid var(--ink-k); border-radius: 14px; box-shadow: var(--hard); background: var(--card); }
+body.speels:not(.cafe) .note { background: var(--t2); color: var(--ink-k); border: 3px solid var(--ink-k); border-radius: 12px; font-weight: 700; }
+
+/* Onderste navigatie: losse blokjes op een achtergrond in de landskleur */
+body.speels:not(.cafe) nav.bottomnav { background: var(--paper) !important; border-top: 4px solid var(--ink-k) !important; box-shadow: none !important; }
+body.speels:not(.cafe) nav.bottomnav .btn { border-radius: 12px; font-size: 14px; }
+body.speels:not(.cafe) nav.bottomnav .btn.active { transform: translateY(-3px); }
+
+/* ---------- App-gedrag: onderste balk verdwijnt en komt terug met een veeg omhoog ---------- */
+body.speels nav.bottomnav { transition: transform .32s cubic-bezier(.2,.9,.3,1); }
+body.speels.nav-away nav.bottomnav { transform: translateY(calc(100% + 30px)); }
+body.speels.nav-away { padding-bottom: 28px; }
+#navHandle {
+  position: fixed; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 7;
+  width: 84px; height: 26px; border-radius: 999px; border: 3px solid var(--ink-k); background: var(--card);
+  box-shadow: 3px 3px 0 var(--ink-k); padding: 0; cursor: pointer;
+  opacity: 0; pointer-events: none; transition: opacity .25s ease;
+}
+#navHandle::before { content: ""; display: block; width: 36px; height: 5px; margin: 7px auto 0; border-radius: 3px; background: var(--ink-k); }
+body.speels.nav-away #navHandle { opacity: 1; pointer-events: auto; }
+
+/* ---------- Thema's: IJs, Jungle, Ruimte (naast Standaard en Café) ---------- */
+body.speels.th-ijs[data-lang] {
+  --card:#ffffff; --ink-k:#0d2b45; --ink-soft:#33607f; --paper:#e9f6ff; --dots:rgba(42,127,212,.28);
+  --head:#8fd3f4; --head-ink:#0d2b45; --p:#2a7fd4; --s:#bfe9ff; --sInk:#0d2b45; --hi:#d4f0ff; --t2:#e6f7ff;
+}
+body.speels.th-jungle[data-lang] {
+  --card:#ffffff; --ink-k:#173a1f; --ink-soft:#3f6b47; --paper:#eef7e3; --dots:rgba(23,58,31,.22);
+  --head:#2f7d32; --head-ink:#ffffff; --p:#e4572e; --s:#f6c744; --sInk:#173a1f; --hi:#d9f2c2; --t2:#e8f8d8;
+}
+body.speels.th-ruimte[data-lang] {
+  --card:#17153d; --ink-k:#f4f1ff; --ink-soft:#c9c3ff; --paper:#0b0b26; --dots:rgba(255,255,255,.35);
+  --head:#1a1748; --head-ink:#ffffff; --p:#ff5d8f; --s:#ffd23f; --sInk:#1c1410; --hi:#2b2766; --t2:#211f55;
+  --hard: 4px 4px 0 #05051a;
+}
+body.speels.th-ruimte[data-lang] .card.panel { color: #f4f1ff; }
+body.speels.th-ruimte[data-lang] .btn { color: #f4f1ff; }
+body.speels.th-ruimte[data-lang] .btn.primary, body.speels.th-ruimte[data-lang] .btn.active, body.speels.th-ruimte[data-lang] .speak { color: #1c1410; }
+body.speels.th-ruimte[data-lang] .nl, body.speels.th-ruimte[data-lang] .hint, body.speels.th-ruimte[data-lang] .stat, body.speels.th-ruimte[data-lang] .explain { color: #c9c3ff; }
+body.speels.th-ruimte[data-lang] .transbar input, body.speels.th-ruimte[data-lang] textarea.big-input { color: #f4f1ff; }
+body.speels.th-ruimte[data-lang] .transbar input::placeholder, body.speels.th-ruimte[data-lang] textarea.big-input::placeholder { color: #9d97d6; }
+body.speels.th-ijs[data-lang] header.top::after, body.speels.th-jungle[data-lang] header.top::after, body.speels.th-ruimte[data-lang] header.top::after { display: none; }
+body.speels .iconbtn { color: var(--ink-k); }
+
+/* ---------- Chatbellen: gesprekspartner links, jouw vervolgopties rechts ---------- */
+body.speels .turn { margin: 0 0 4px; }
+body.speels:not(.cafe) .bubble.partner { max-width: 90%; margin-right: auto; border-radius: 22px 22px 22px 6px; }
+body.speels:not(.cafe) .replies { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin: -8px 2px 14px 0; }
+body.speels:not(.cafe) .replies .sec-title { font-size: 13px; color: var(--ink-soft); margin: 4px 6px 0 0; align-self: flex-end; }
+body.speels:not(.cafe) .line-row.bubble.me {
+  max-width: 88%; margin: 0; padding: 10px 12px; width: auto;
+  background: var(--s); color: var(--sInk); border: 3px solid var(--ink-k); border-radius: 22px 22px 6px 22px;
+  box-shadow: var(--hard);
+}
+body.speels:not(.cafe) .line-row.bubble.me .nl, body.speels:not(.cafe) .line-row.bubble.me .es { color: var(--sInk); }
+body.speels:not(.cafe) .line-row.bubble.me .speak { background: var(--card); color: var(--ink-k); }
+
+/* ---------- Mascotte ---------- */
+body.speels h1::before { content: none; }
+#owl { flex-shrink: 0; width: 56px; height: 56px; display: grid; place-items: center; cursor: pointer; }
+#owl svg { overflow: visible; transform-origin: 50% 90%; }
+#owl .eyes-open, #owl .eyes-happy, #owl .eyes-oops { display: none; }
+#owl.mood-idle .eyes-open, #owl.mood-think .eyes-open { display: inline; }
+#owl.mood-happy .eyes-happy { display: inline; }
+#owl.mood-oops .eyes-oops { display: inline; }
+#owl.mood-idle svg { animation: owl-breathe 3.6s ease-in-out infinite; }
+#owl.mood-happy svg { animation: owl-hop .5s ease-in-out 3; }
+#owl.mood-oops svg { animation: owl-shake .45s ease-in-out 2; }
+#owl.mood-think svg { animation: owl-breathe 1s ease-in-out infinite; }
+#owl .eye-blink { transform-origin: center; animation: owl-blink 5s infinite; transform-box: fill-box; }
+@keyframes owl-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes owl-hop { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-7px); } }
+@keyframes owl-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+@keyframes owl-blink { 0%,94%,100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+@media (prefers-reduced-motion: reduce) { #owl svg, #owl .eye-blink { animation: none; } }

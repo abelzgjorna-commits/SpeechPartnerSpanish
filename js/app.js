@@ -949,9 +949,9 @@
     if (tk && !tk.gen) return { text: L(tk.m), whole: true, es: tk.es, about: norm(tk.es) !== n };
     allItems().forEach(function (it) { if (!hit && near(norm(it.es), n)) hit = it; });
     if (hit) return { text: L(hit.m), whole: true, es: hit.es, about: true };
-    // Grammatica-motor (voorlopig alleen Nederlands): eerst de zin ontleden en opbouwen.
+    // Grammatica-motor (NL, EN, DE, FR): eerst de zin ontleden en opbouwen.
     // Lukt dat niet, dan valt de app terug op woord-voor-woord.
-    if (lang === "nl" && typeof GRAM !== "undefined") {
+    if (typeof GRAM !== "undefined") {
       var gw = function (s) {
         var lwx = learned("geleerdWoord")[lang] || {};
         if (lwx[norm(s)] !== undefined) return lwx[norm(s)];
@@ -961,7 +961,7 @@
         var rvx = REVS[lang];
         return rvx[s] !== undefined ? rvx[s] : revNorm(rvx)[norm(s)];
       };
-      var gr = GRAM.translate(text, gw);
+      var gr = GRAM.translate(text, gw, lang);
       if (gr) return { text: gr.text, parts: gr.parts, missing: [], grammar: true };
     }
     var rev = REVS[lang], lw = learned("geleerdWoord")[lang] || {};
@@ -1011,9 +1011,103 @@
     var react = findReact(n), tk = react ? null : findTalk(n);
     if (react) react.styles.forEach(function (s) { replies.push({ label: LBL[s[0]], es: s[1], m: s[2] }); });
     else if (tk) tk.a.forEach(function (x) { replies.push({ label: ANS, es: x.es, m: x.m }); });
-    else shuffle(PHRASES["Tijd winnen"]).slice(0, 2).forEach(function (x) { replies.push({ label: UI["Tijd winnen"], es: x.es, m: x.m }); });
-    var fu = (react || tk) ? [] : shuffle(PHRASES["Doorvragen"]).slice(0, 3).map(function (x) { return { label: UI["Vraag door"], es: x.es, m: x.m }; });
+    var fu = [];
+    if (!react && !tk) {
+      // Geen vast patroon: antwoorden en vragen gaan over het onderwerp van de zin, nooit over iets anders.
+      var tp = topicOf(text), isQ = /[¿?]/.test(text);
+      var tr = tp ? topicReplies(tp, isQ) : null;
+      if (tr) {
+        replies.push({ label: ANS, es: tr.answer.es, m: tr.answer.m });
+        fu = tr.questions.map(function (x) { return { label: UI["Vraag door"], es: x.es, m: x.m }; });
+      } else {
+        // Geen onderwerp te vinden: vraag om herhaling of uitleg van wat er gezegd is
+        [
+          { es: "¿Puedes repetirlo, por favor?", m: { nl: "Kun je dat herhalen, alsjeblieft?", en: "Can you repeat that, please?", de: "Kannst du das bitte wiederholen?", fr: "Tu peux répéter, s'il te plaît ?" } },
+          { es: "¿Qué quieres decir?", m: { nl: "Wat bedoel je?", en: "What do you mean?", de: "Was meinst du?", fr: "Qu'est-ce que tu veux dire ?" } }
+        ].forEach(function (x) { fu.push({ label: UI["Vraag door"], es: x.es, m: x.m }); });
+      }
+    }
     return { es: text.trim(), tr: esToLang(text), options: replies.concat(fu) };
+  }
+
+  // Zoekt het onderwerp van een zin: het zelfstandig naamwoord na een lidwoord of bezittelijk voornaamwoord
+  var TOPIC_STOP = ["el", "la", "los", "las", "un", "una", "unos", "unas", "tu", "tus", "mi", "mis", "su", "sus",
+    "de", "del", "que", "como", "qué", "por", "para", "y", "o", "a", "en", "con", "es", "son", "esta", "está", "estás",
+    "estoy", "estamos", "tiene", "tienes", "tengo", "hay", "muy", "bien", "hoy", "ya", "no", "sí", "si", "te", "me", "se",
+    "lo", "le", "al", "yo", "tú", "usted", "fin", "cuando", "donde", "dónde", "cuándo", "cuánto", "cuántos", "también"];
+  var TOPIC_M = ["mapa", "día", "problema", "sistema", "programa", "idioma", "planeta", "tema", "clima", "sofá"];
+
+  function topicOf(text) {
+    var ws = text.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, " ").split(/\s+/).filter(Boolean);
+    var DET = ["el", "la", "los", "las", "un", "una", "tu", "tus", "mi", "mis", "su", "sus"];
+    var mk = function (det, noun) {
+      var art = (det === "la" || det === "las") ? "la" : (det === "el" || det === "los") ? "el" : null;
+      if (!art) art = (/a$/.test(noun) && TOPIC_M.indexOf(noun) < 0) ? "la" : "el";
+      return { es: noun, art: art, det: det };
+    };
+    for (var i = 0; i < ws.length - 1; i++) {
+      if (DET.indexOf(ws[i]) >= 0 && TOPIC_STOP.indexOf(ws[i + 1]) < 0 && ws[i + 1].length > 2) return mk(ws[i], ws[i + 1]);
+    }
+    return null; // zonder lidwoord of bezittelijk voornaamwoord geen onderwerp (bijv. "hace frío")
+  }
+
+  // Vertaling van het onderwerp in een taal, zonder lidwoord (voor de Nederlandse, Engelse, Duitse en Franse zinnen)
+  function topicGloss(l, es) {
+    var r = REVS[l], v = r && r[es];
+    if (!v) return es;
+    v = String(v).split(/\s*[\/;,]\s*/)[0];
+    if (l === "de" || l === "fr") v = v.replace(/^(der|die|das|ein|eine|le|la|les|un|une|l')\s*/i, "");
+    return v;
+  }
+
+  // Antwoorden over het onderwerp van de zin. Het geslacht komt uit de tabel van de grammatica.
+  // Staat het woord niet in de tabel, dan blijven de antwoorden zonder naam ("Ich mag es.") en
+  // blijft het antwoord over het onderwerp, nooit een willekeurige vraag.
+  function topicReplies(tp, isQ) {
+    var x = tp.es, art = tp.art, dk = tp.det;
+    var dSpec = (dk === "un" || dk === "una") ? "un" : (dk === "tu" || dk === "tus") ? "tu" : (dk === "mi" || dk === "mis") ? "mi" : "el";
+    var gD = (typeof GRAM !== "undefined") ? GRAM.gen(x, "de") : null;
+    var gF = (typeof GRAM !== "undefined") ? GRAM.gen(x, "fr") : null;
+    var known = !!(gD && gF);
+    var g = gD || "m", gfr = gF || "m";
+    var np = function (l, det, role) { return known ? GRAM.np(l, det, x, role, null) : null; };
+    var capDE = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
+    var nlN = topicGloss("nl", x), enBare = topicGloss("en", x), enN = "the " + enBare;
+    var nlNoun = (g === "n" ? "het " : "de ") + nlN;
+    var nlPron = { m: "hij", f: "zij", n: "het" }[g];
+    var pDE = { m: "er", f: "sie", n: "es" }[g], pFR = gfr === "f" ? "elle" : "il";
+    var deAcc = np("de", dSpec, "acc"), frAcc = np("fr", dSpec, "acc");
+    var deNom = np("de", "el", "nom");
+    if (!isQ) { // mededeling: reageer enthousiast en vraag door over hetzelfde onderwerp
+      return {
+        answer: { es: "¡Qué bien! Me gusta " + art + " " + x + ".",
+          m: { nl: "Wat leuk! Ik vind " + nlNoun + " ook leuk.", en: "How nice! I like " + enN + ".",
+            de: "Wie schön! Ich mag " + (deAcc || "es") + ".",
+            fr: "Super ! " + (frAcc ? "J'aime " + frAcc : "Je l'aime bien") + "." } },
+        questions: [
+          { es: "¿Cómo se llama " + art + " " + x + "?",
+            m: { nl: "Hoe heet " + nlPron + "?", en: "What is its name?",
+              de: "Wie heißt " + (known ? pDE : "es") + "?", fr: "Comment s'appelle-t-" + (known ? pFR : "il") + " ?" } },
+          { es: "¿Cómo es " + art + " " + x + "?",
+            m: { nl: "Hoe is " + nlNoun + "?", en: "What is " + enN + " like?",
+              de: "Wie ist " + (deNom || "es") + "?", fr: "Comment est-" + (known ? pFR : "il") + " ?" } }
+        ]
+      };
+    }
+    return {
+      answer: { es: "Mi " + x + " está muy bien, gracias.",
+        m: { nl: "Met mijn " + nlN + " gaat het goed, dank je.", en: "My " + enBare + " is doing very well, thanks.",
+          de: (known ? capDE(np("de", "mi", "dat")) + " geht es" : "Es geht ihm") + " sehr gut, danke.",
+          fr: known ? "Ça va très bien pour " + np("fr", "mi", "acc") + ", merci." : "Ça va très bien, merci." } },
+      questions: [
+        { es: "¿Te gusta " + art + " " + x + "?",
+          m: { nl: "Vind je " + nlNoun + " leuk?", en: "Do you like " + enN + "?",
+            de: "Magst du " + (deAcc || "es") + "?", fr: "Tu aimes " + (frAcc || "ça") + " ?" } },
+        { es: "¿Cómo es " + art + " " + x + "?",
+          m: { nl: "Hoe is " + nlNoun + "?", en: "What is " + enN + " like?",
+            de: "Wie ist " + (deNom || "es") + "?", fr: "Comment est-" + (known ? pFR : "il") + " ?" } }
+      ]
+    };
   }
 
   function isIOS() {
@@ -1033,7 +1127,7 @@
   var WH_MODELS = { tiny: "onnx-community/whisper-tiny", base: "onnx-community/whisper-base" };
 
   // Diagnose: elke stap van de spraakroute wordt genoteerd, zodat een fout precies aan te wijzen is.
-  var APP_VERSION = "38";
+  var APP_VERSION = "41";
   var WH_LOG = [];
   function whLog(msg) {
     var d = new Date();
@@ -1445,12 +1539,6 @@
       ws.id = "whStatus";
       if (!S.whStatus) ws.style.display = "none";
       w.appendChild(ws);
-      w.appendChild(btn(T("Diagnose spraak"), "small", function () { S.whDiag = !S.whDiag; render(); }));
-      if (S.whDiag) {
-        var pre = document.createElement("pre");
-        pre.className = "diag"; pre.textContent = whReport();
-        w.appendChild(pre);
-      }
       if (store.get("whModel", null) && !S.whAsk && !S.listening) {
         w.appendChild(btn(T("Spraakmodel wijzigen"), "small", function () { S.whAsk = true; render(); }));
       }
@@ -1506,7 +1594,8 @@
       card.appendChild(f);
     }
     S.convo.slice().reverse().forEach(function (t, ti) {
-      var card = el("div", "card");
+      var turn = el("div", "turn");
+      var card = el("div", "card bubble partner");
       card.appendChild(el("div", "nl", T("Gesprekspartner zei")));
       var line = el("div", "line-row");
       var tx = el("div", "txt");
@@ -1515,15 +1604,17 @@
       line.appendChild(speakBtn(t.es));
       card.appendChild(line);
       card.appendChild(el("div", "nl", T("Vertaling")));
-      card.appendChild(el("div", "", t.tr.text));
-      if (t.tr.about && t.tr.es) card.appendChild(el("div", "nl", T("Herkend als:") + " " + t.tr.es));
-      if (t.tr.learned) card.appendChild(el("div", "nl", T("Door jou aangeleerd")));
-      if (t.tr.parts) card.appendChild(el("div", "nl", t.tr.parts.join(" · ")));
+      // De vertaling wordt bij het tonen opnieuw gemaakt, zodat ze altijd de gekozen taal volgt.
+      var trr = esToLang(t.es) || t.tr;
+      card.appendChild(el("div", "", trr.text));
+      if (trr.about && trr.es) card.appendChild(el("div", "nl", T("Herkend als:") + " " + trr.es));
+      if (trr.learned) card.appendChild(el("div", "nl", T("Door jou aangeleerd")));
+      if (trr.parts) card.appendChild(el("div", "nl", trr.parts.join(" · ")));
       var teach = (S.teach && S.teach.i === ti) ? S.teach : null;
-      if (t.tr.missing && t.tr.missing.length) {
+      if (trr.missing && trr.missing.length) {
         card.appendChild(el("div", "bad", T("Niet in de lijst. Tik op een woord om het de app te leren:")));
         var mr = el("div", "chips");
-        t.tr.missing.forEach(function (wd) {
+        trr.missing.forEach(function (wd) {
           mr.appendChild(btn(wd + " = ?", teach && teach.word === wd ? "primary small" : "small", function () { S.teach = { i: ti, kind: "word", word: wd }; render(); }));
         });
         card.appendChild(mr);
@@ -1535,18 +1626,22 @@
       if (teach && teach.kind === "word") teachForm(card, teach.word + " = …", function (v) { learnWord(teach.word, v); refresh(t); }, { kind: "word", text: teach.word });
       if (teach && teach.kind === "zin") teachForm(card, T("Wat betekent deze zin?"), function (v) { learnSentence(t.es, v); refresh(t); }, { kind: "zin", text: t.es.replace(/[¿?¡!.]+/g, "").trim() });
       if (teach && teach.kind === "antwoord") teachForm(card, T("Jouw antwoord in het Spaans"), function (v) { learnReply(t.es, v); refresh(t); }, { kind: "antwoord", text: t.es });
-      card.appendChild(el("div", "sec-title", T("Mogelijke vervolg")));
+      turn.appendChild(card);
+      // Vervolgopties als eigen bellen aan de andere kant van het gesprek
+      var rep = el("div", "replies");
+      rep.appendChild(el("div", "sec-title", T("Mogelijke vervolg")));
       t.options.forEach(function (o) {
-        var l = el("div", "line-row");
+        var l = el("div", "line-row bubble me");
         var x = el("div", "txt");
         x.appendChild(el("div", "nl", L(o.label)));
         x.appendChild(el("div", "es", o.es));
         if (o.m) x.appendChild(el("div", "nl", L(o.m)));
         l.appendChild(x);
         l.appendChild(speakBtn(o.es));
-        card.appendChild(l);
+        rep.appendChild(l);
       });
-      w.appendChild(card);
+      turn.appendChild(rep);
+      w.appendChild(turn);
     });
     return w;
   }
@@ -1914,6 +2009,7 @@
     document.getElementById("langSel").value = lang;
     document.getElementById("themeSel").value = theme;
     document.body.classList.toggle("cafe", theme === "cafe");
+    ["ijs", "jungle", "ruimte"].forEach(function (t) { document.body.classList.toggle("th-" + t, theme === t); });
     renderLogo();
   }
 
